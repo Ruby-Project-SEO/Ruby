@@ -57,26 +57,27 @@ def get_food_price(food_id):
 
 def search_drug(drug):
   response = requests.get(drugurl,
-                            params={"search": description
+                            params={"search": description,
                                     "limit": 1})
 
-    drug_status = response.json()
+  drug_status = response.json()
 
-    if "results" not in drug_status:
-        return None
+  if "results" not in drug_status:
+      return None
 
-    items = drug_status["results"]
+  items = drug_status["results"]
 
-    results = []
+  results = []
 
-    for item in items:
-      results.append({
-          "Drug": item.get("description", "N/A"),
-      })
+  for item in items:
+    results.append({
+        "Drug": item.get("description", "N/A"),
+    })
 
-    return results
+  return results
   
 
 def search_cosmetics(cosmetic):
+  return None
 
 

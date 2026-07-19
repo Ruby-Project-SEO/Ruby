@@ -1,5 +1,5 @@
-from flask import Flask, render_template, url_for, flash, redirect
-from flask_behind_proxy import FlaskBehindProxy, request, url_for
+from flask import Flask, render_template, url_for, flash, redirect, request
+from flask_behind_proxy import FlaskBehindProxy
 
 app = Flask(__name__)
 proxied = FlaskBehindProxy(app)
