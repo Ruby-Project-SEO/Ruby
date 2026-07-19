@@ -13,7 +13,13 @@
     align-items: center;
 }
 
-
+.login-title h2{
+    text-align: center;
+    color:#fff;
+    font-family: 'Cormorant Garamond', serif;
+    margin-top: 10px;
+    font-size: 25px;
+}
 .login-title{
     text-align: center;
     margin-bottom: 110px;
