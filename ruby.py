@@ -164,3 +164,7 @@ def delete_saved(table, row_num):
             {"row": row_num})
         connection.commit()
 
+def get_link(item):
+  query = item.replace(" ", "+")
+  return f"https://www.google.com/search?q=buy+{query}"
+
