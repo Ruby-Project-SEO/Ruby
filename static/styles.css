@@ -33,7 +33,7 @@
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    margin-top: -5rem;
+    margin-top: -76px;
     background: 
       linear-gradient(135deg, rgba(3, 105, 161, 0.95), rgba(14, 165, 233, 0.75)),
       url("../static/images/493624.jpg") no-repeat;
@@ -41,6 +41,10 @@
     position: relative;
     background-size: cover;
     background-position: center;
+}
+
+.login-body {
+    padding-top: 0;
 }
 
 .wrapper{
@@ -156,14 +160,6 @@ body {
     margin-top: 5rem;
 }
 
-.bg-steel {
-    background-color: #5f788a;
-}
-
-.site-header .navbar-nav .nav-link {
-    color: #cbd5db;
-}
-
 .site-header .navbar-nav .nav-link:hover {
     color: #ffffff;
 }
@@ -225,4 +221,103 @@ body {
 
 .account-heading {
     font-size: 2.5rem;
+}
+
+/* New Wellness Navbar */
+body {
+    padding-top: 76px;
+}
+
+.wellness-navbar {
+    min-height: 76px;
+    background-color: #075737;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.wellness-logo {
+    color: #ffffff !important;
+    font-family: "Cormorant Garmond", serif;
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.wellness-navbar .nav-link {
+    margin: 0 10px;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.wellness-navbar .nav-link:hover {
+    color: #ffffff;
+}
+
+.navbar-actions {
+    align-items: center;
+    gap: 10px;
+}
+
+.login-link {
+    color: #ffffff !important;
+}
+
+.signup-button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 24px;
+    border-radius: 999px;
+    background-color: #d9ed3f;
+    color: #153d29;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.signup-button:hover {
+    background-color: #e6f66b;
+    color: #153d29;
+    transform: translateY(-1px);
+}
+
+.wellness-navbar .navbar-toggler {
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.wellness-navbar .navbar-toggler:focus {
+    box-shadow: none;
+}
+
+.wellness-navbar .navbar-toggler-icon {
+    filter: brightness(0) invert(1);
+}
+
+.flash-container {
+    margin-top: 20px;
+}
+
+@media (max-width: 991px) {
+    .wellness-navbar .navbar-collapse {
+        margin-top: 18px;
+        padding: 20px;
+        background-color: #075737;
+        border-radius: 12px;
+    }
+
+    .wellness-navbar .nav-link {
+        margin: 4px 0;
+    }
+
+    .navbar-actions {
+        align-items: flex-start;
+        margin-top: 12px;
+    }
+
+    .signup-button {
+        margin-top: 6px;
+    }
 }
