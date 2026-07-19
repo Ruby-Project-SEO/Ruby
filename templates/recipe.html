@@ -1,4 +1,29 @@
 {% extends "layout.html" %}
+
 {% block content %}
- <h1> Hello World</h1>
-{% endblock %}
+<section class="recipe-hero">
+    <div class="recipe-hero-overlay"></div>
+
+    <div class="recipe-hero-content">
+        <span class="recipe-hero-label">
+            Healthy cooking made simple
+        </span>
+
+        <h1>
+            Find a recipe you'll love
+        </h1>
+
+        <p>
+            Discover delicous meals using ingredients you already have.
+        </p>
+
+        <form class="recipe-search" action="#" method="GET">
+            <input type="text" name="search" placeholder="Search recipes or ingredients..." aria-label="Search recipes">
+            <button type="submit">
+                <i class="bi bi-search"></i>
+            </button>
+        </form>
+
+    </div>
+</section>
+{% endblock content %}
