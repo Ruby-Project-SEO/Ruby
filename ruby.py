@@ -14,7 +14,7 @@ client = genai.Client(api_key=my_api_key)
 
 foodurl = "https://api.spoonacular.com/food/products/search"
 drugurl = "https://api.fda.gov/drug/label.json"
-cosmeticurl = ""
+cosmeticurl = "https://world.openbeautyfacts.org/cgi/search.pl"
 
 
 def search_food(food):
@@ -57,7 +57,7 @@ def get_food_price(food_id):
 
 def search_drug(drug):
   response = requests.get(drugurl,
-                            params={"search": description
+                            params={"search": f"openfda.brand_name:{drug}"
                                     "limit": 1})
 
     drug_status = response.json()
@@ -71,12 +71,31 @@ def search_drug(drug):
 
     for item in items:
       results.append({
-          "Drug": item.get("description", "N/A"),
+          "Drug": item.get("openfda, {}").get("brand_name", ["N/A"])[0],
       })
 
     return results
   
 
 def search_cosmetics(cosmetic):
+  response = requests.get(cosmeticurl,
+                          params={"search_terms": cosmetic,
+                                  "json:" 1,
+                                  "page_size": 1})
+  
+  cosmetic_status = response.json()
 
+  if "products" not in cosmetic_status:
+    return None
+  
+  items = cosmetic_status["products"]
+  
+  results = []
+
+  for item in items:
+    results.append({
+      "Cosmetic": item.get("product_name", "N/A")
+    })
+
+  return results
 
