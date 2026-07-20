@@ -1,3 +1,4 @@
-__pycache__
-.codio
-.env
+.venv/
+__pycache__/
+*.py[cod]
+instance/
