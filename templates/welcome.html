@@ -10,11 +10,46 @@
             </div>
         </div>
 
-        <form class="wellness-search" action="#" method="GET">
+        <form id="ruby-question-form" class="wellness-search" action="{{ url_for('ask_ruby') }}" method="POST">
             <i class="bi bi-search"></i>
-            <input type="text" name="search" placeholder="Ask a wellness question..." aria-label="Ask a wellness question">
+            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="Ask a wellness question..." aria-label="Ask a wellness question" required>
             <button type="submit">Ask Ruby</button>
         </form>
+
+        {% if ruby_answer or ruby_error %}
+        <div class="ruby-result-layout {% if ruby_error %}single-result{% endif %}">
+            <section class="ruby-response {% if ruby_error %}ruby-response-error{% endif %}" aria-live="polite">
+                <div class="ruby-response-heading">
+                    <span>Ruby</span>
+                    <small>AI-generated wellness information</small>
+                </div>
+                <p>{{ ruby_answer or ruby_error }}</p>
+            </section>
+            {% if ruby_answer %}
+            <aside class="remedy-sidebar">
+                <span class="remedy-sidebar-label">Recommended</span>
+                <h2>Come here first</h2>
+                <div class="remedy-links">
+                    {% for category in ruby_ranking %}
+                        {% if category == 'food' %}
+                        <a class="{% if loop.first %}recommended-remedy{% endif %}" href="{{ url_for('recipe', search=ruby_question) }}">
+                            <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-egg-fried"></i>Food{% if loop.first %}<small>Start here</small>{% endif %}
+                        </a>
+                        {% elif category == 'drugs' %}
+                        <span class="unavailable-remedy {% if loop.first %}recommended-remedy{% endif %}">
+                            <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-capsule"></i>Drugs
+                        </span>
+                        {% elif category == 'cosmetics' %}
+                        <span class="unavailable-remedy {% if loop.first %}recommended-remedy{% endif %}">
+                            <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-droplet"></i>Cosmetics
+                        </span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </aside>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <div class="dashboard-details">
             <section class="today-section">
@@ -84,12 +119,12 @@
             </a>
             <a class="simple-action" href="#">
                 <i class="bi bi-capsule"></i>
-                <span>Drug comparison</span>
+                <span>Drugs</span>
                 <i class="bi bi-arrow-right"></i>
             </a>
             <a class="simple-action" href="#">
                 <i class="bi bi-droplet"></i>
-                <span>Wellness routine</span>
+                <span>Cosmetics</span>
                 <i class="bi bi-arrow-right"></i>
             </a>
         </div>
@@ -113,5 +148,12 @@
         };
         window.setTimeout(typeGreeting, 250);
     }
+
+    const rubyQuestionForm = document.getElementById('ruby-question-form');
+    rubyQuestionForm.addEventListener('submit', () => {
+        const submitButton = rubyQuestionForm.querySelector('button');
+        submitButton.disabled = true;
+        submitButton.textContent = 'Asking…';
+    });
 </script>
 {% endblock %}

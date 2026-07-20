@@ -18,7 +18,7 @@
         </p>
 
         <form class="recipe-search" action="#" method="GET">
-            <input type="text" name="search" placeholder="Search recipes or ingredients..." aria-label="Search recipes">
+            <input type="text" name="search" value="{{ request.args.get('search', '') }}" placeholder="Search recipes or ingredients..." aria-label="Search recipes">
             <button type="submit">
                 <i class="bi bi-search"></i>
             </button>
