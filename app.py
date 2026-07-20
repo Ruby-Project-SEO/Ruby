@@ -21,6 +21,10 @@ def entry():
 def recipe():
     return render_template('recipe.html')
 
+@app.route('/routine')
+def routine():
+    return render_template('routine.html')
+
 
 
 if __name__ == '__main__':
