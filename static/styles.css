@@ -701,6 +701,28 @@ body {
 
 .simple-dashboard-header h1 {
     margin-top: 12px;
+    min-height: 1em;
+}
+
+.typing-caret {
+    width: 3px;
+    height: .78em;
+    display: inline-block;
+    margin-left: 7px;
+    background: #173d2b;
+    animation: caret-blink .8s step-end infinite;
+}
+
+@keyframes caret-blink {
+    50% {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .typing-caret {
+        display: none;
+    }
 }
 
 .simple-actions {
@@ -863,5 +885,145 @@ body {
     .recent-section {
         border-right: 0;
         border-bottom: 1px solid #e6eae4;
+    }
+}
+
+.task-add-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.task-add-form input,
+.task-edit-form input {
+    min-width: 0;
+    flex: 1;
+    border: 1px solid #dce2da;
+    outline: 0;
+    background: #f8faf6;
+    color: #365746;
+    font-size: 13px;
+}
+
+.task-add-form input {
+    padding: 11px 13px;
+    border-radius: 10px;
+}
+
+.task-add-form input:focus,
+.task-edit-form input:focus {
+    border-color: #99aa42;
+    background: #fff;
+}
+
+.task-add-form button {
+    padding: 0 18px;
+    border: 0;
+    border-radius: 10px;
+    background: #075737;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.task-list {
+    display: grid;
+}
+
+.task-row {
+    display: grid;
+    grid-template-columns: 30px 1fr 30px;
+    align-items: center;
+    gap: 6px;
+    min-height: 46px;
+    border-bottom: 1px solid #eef1ec;
+}
+
+.task-row:last-child {
+    border-bottom: 0;
+}
+
+.task-row form {
+    margin: 0;
+}
+
+.task-toggle,
+.task-delete,
+.task-edit-form button {
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #73867b;
+}
+
+.task-toggle {
+    color: #075737;
+    font-size: 17px;
+}
+
+.task-delete:hover {
+    background: #f8eeee;
+    color: #a34f4f;
+}
+
+.task-edit-form {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.task-edit-form input {
+    width: 100%;
+    padding: 7px 9px;
+    border-color: transparent;
+    background: transparent;
+}
+
+.task-edit-form button:hover {
+    background: #edf3e8;
+    color: #075737;
+}
+
+.task-row.completed .task-edit-form input {
+    color: #96a19b;
+    text-decoration: line-through;
+}
+
+.empty-state {
+    margin: 4px 0;
+    color: #96a19b;
+    font-size: 13px;
+}
+
+.tracked-details {
+    grid-template-columns: 2fr 1fr;
+}
+
+.task-summary {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    column-gap: 8px;
+}
+
+.task-summary .section-title {
+    grid-column: 1 / -1;
+}
+
+.task-summary strong {
+    color: #173d2b;
+    font: 600 25px "Cormorant Garamond", Georgia, serif;
+}
+
+.task-summary > span {
+    color: #87958d;
+    font-size: 12px;
+}
+
+@media (max-width: 700px) {
+    .tracked-details {
+        grid-template-columns: 1fr;
     }
 }
