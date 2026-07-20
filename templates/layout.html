@@ -15,7 +15,7 @@
     <nav class="navbar navbar-expand-lg wellness-navbar fixed-top">
       <div class="container">
 
-        <a class="navbar-brand wellness-logo" href="/">
+        <a class="navbar-brand wellness-logo" href="{{ url_for('home') }}">
           <i class="bi bi-gem me-2"></i>RUBY
         </a>
 
@@ -26,15 +26,15 @@
 
         <div class="collapse navbar-collapse" id="wellnessNavbar">
           <div class="navbar-nav mx-auto">
-            <a class="nav-link" href="/">Home</a>
-            <a class="nav-link" href="/recipe">Recipes</a>
+            <a class="nav-link {% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Dashboard</a>
+            <a class="nav-link {% if request.endpoint == 'recipe' %}active{% endif %}" href="{{ url_for('recipe') }}">Recipes</a>
             <a class="nav-link" href="#">Drug Comparison</a>
             <a class="nav-link" href="/routine">Routine</a>
             <a class="nav-link" href="#">Cart</a>
           </div>
 
           <div class="navbar-nav navbar-actions">
-            <a class="nav-link login-link" href="/login">Login</a>
+            <a class="nav-link login-link" href="{{ url_for('login') }}">Login</a>
             <a class="signup-button" href="/register">Sign Up</a>
           </div>
 

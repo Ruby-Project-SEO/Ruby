@@ -1,30 +1,158 @@
 {% extends "layout.html" %}
 {% block content %}
-<section class="recipe-hero">
-    <div class="recipe-hero-overlay"></div>
+<section class="dashboard-page simple-dashboard">
+    <div class="dashboard-container simple-dashboard-container">
+        <div class="dashboard-header simple-dashboard-header">
+            <div>
+                <span class="dashboard-label">Your wellness dashboard</span>
+                <h1><span id="typed-greeting">Good day{% if username %}, {{ username }}{% endif %}</span><span class="typing-caret" aria-hidden="true"></span></h1>
+                <p>What can Ruby help you with today?</p>
+            </div>
+        </div>
 
-    <div class="recipe-hero-content">
-        <span class="recipe-hero-label">
-            Improve your wellness in a variety of ways
-        </span>
-
-        <h1>
-            Welcome {{username}}
-        </h1>
-
-        <p>
-            What's your issue today?
-        </p>
-
-        <form class="recipe-search" action="#" method="GET">
-            <input type="text" name="search" placeholder="Enter health related issue..." aria-label="Search recipes">
-            <button type="submit">
-                <i class="bi bi-search"></i>
-            </button>
+        <form id="ruby-question-form" class="wellness-search" action="{{ url_for('ask_ruby') }}" method="POST">
+            <i class="bi bi-search"></i>
+            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="Ask a wellness question..." aria-label="Ask a wellness question" required>
+            <button type="submit">Ask Ruby</button>
         </form>
 
+        {% if ruby_answer or ruby_error %}
+        <div class="ruby-result-layout {% if ruby_error %}single-result{% endif %}">
+            <section class="ruby-response {% if ruby_error %}ruby-response-error{% endif %}" aria-live="polite">
+                <div class="ruby-response-heading">
+                    <span>Ruby</span>
+                    <small>AI-generated wellness information</small>
+                </div>
+                <p>{{ ruby_answer or ruby_error }}</p>
+            </section>
+            {% if ruby_answer %}
+            <aside class="remedy-sidebar">
+                <h2>Come here first</h2>
+                <div class="remedy-links">
+                    {% for category in ruby_ranking %}
+                        {% if category == 'food' %}
+                        <a class="{% if loop.first %}recommended-remedy{% endif %}" href="{{ url_for('recipe', search=ruby_question) }}">
+                            <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-egg-fried"></i>Food{% if loop.first %}<small>Start here</small>{% endif %}
+                        </a>
+                        {% elif category == 'drugs' %}
+                        <span class="unavailable-remedy {% if loop.first %}recommended-remedy{% endif %}">
+                            <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-capsule"></i>Drugs
+                        </span>
+                        {% elif category == 'cosmetics' %}
+                        <span class="unavailable-remedy {% if loop.first %}recommended-remedy{% endif %}">
+                            <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-droplet"></i>Cosmetics
+                        </span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </aside>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="dashboard-details">
+            <section class="today-section">
+                <div class="section-title">
+                    <h2>Today</h2>
+                    <span>{{ completed_count }} of {{ tasks|length }} complete</span>
+                </div>
+
+                <form class="task-add-form" action="{{ url_for('add_task') }}" method="POST">
+                    <input type="text" name="title" maxlength="120" placeholder="Add a task" aria-label="New task" required>
+                    <button type="submit">Add</button>
+                </form>
+
+                <div class="task-list">
+                    {% for task in tasks %}
+                    <div class="task-row {% if task.completed %}completed{% endif %}">
+                        <form action="{{ url_for('toggle_task', task_id=task.id) }}" method="POST">
+                            <button class="task-toggle" type="submit" aria-label="Toggle {{ task.title }}">
+                                <i class="bi {% if task.completed %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                            </button>
+                        </form>
+                        <form class="task-edit-form" action="{{ url_for('edit_task', task_id=task.id) }}" method="POST">
+                            <input type="text" name="title" value="{{ task.title }}" maxlength="120" aria-label="Edit task">
+                            <button type="submit" aria-label="Save {{ task.title }}"><i class="bi bi-check2"></i></button>
+                        </form>
+                        <form action="{{ url_for('delete_task', task_id=task.id) }}" method="POST">
+                            <button class="task-delete" type="submit" aria-label="Delete {{ task.title }}"><i class="bi bi-trash3"></i></button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <p class="empty-state">No tasks yet. Add your first one above.</p>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <div class="dashboard-detail-columns tracked-details">
+                <section class="recent-section">
+                    <div class="section-title">
+                        <h2>Recent activity</h2>
+                    </div>
+                    <ul class="recent-list">
+                        {% for activity in activities %}
+                        <li><span>{{ activity.description }}</span><small>{{ activity.display_time }}</small></li>
+                        {% else %}
+                        <li class="empty-state">Your task activity will appear here.</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+
+                <section class="saved-section task-summary">
+                    <div class="section-title">
+                        <h2>Task summary</h2>
+                    </div>
+                    <strong>{{ completed_count }}</strong>
+                    <span>completed</span>
+                    <strong>{{ tasks|length - completed_count }}</strong>
+                    <span>remaining</span>
+                </section>
+            </div>
+        </div>
+
+        <div class="simple-actions">
+            <a class="simple-action" href="{{ url_for('recipe') }}">
+                <i class="bi bi-egg-fried"></i>
+                <span>Recipes</span>
+                <i class="bi bi-arrow-right"></i>
+            </a>
+            <a class="simple-action" href="#">
+                <i class="bi bi-capsule"></i>
+                <span>Drugs</span>
+                <i class="bi bi-arrow-right"></i>
+            </a>
+            <a class="simple-action" href="#">
+                <i class="bi bi-droplet"></i>
+                <span>Cosmetics</span>
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
     </div>
 </section>
+<script>
+    //carat animation for the greeting text
+    const greeting = document.getElementById('typed-greeting');
+    const greetingText = greeting.textContent;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!reducedMotion) {
+        greeting.textContent = '';
+        let characterIndex = 0;
+        const typeGreeting = () => {
+            greeting.textContent += greetingText[characterIndex];
+            characterIndex += 1;
+            if (characterIndex < greetingText.length) {
+                window.setTimeout(typeGreeting, 65);
+            }
+        };
+        window.setTimeout(typeGreeting, 250);
+    }
+
+    const rubyQuestionForm = document.getElementById('ruby-question-form');
+    rubyQuestionForm.addEventListener('submit', () => {
+        const submitButton = rubyQuestionForm.querySelector('button');
+        submitButton.disabled = true;
+        submitButton.textContent = 'Asking…';
+    });
+</script>
 {% endblock %}
-
-
