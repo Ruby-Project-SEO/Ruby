@@ -710,6 +710,108 @@ body {
     margin-top: 20px;
 }
 
+.dashboard-details {
+    margin-top: 20px;
+    overflow: hidden;
+    border: 1px solid #dce2da;
+    border-radius: 16px;
+    background: #fff;
+}
+
+.today-section,
+.recent-section,
+.saved-section {
+    padding: 22px 24px;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.section-title h2 {
+    margin: 0;
+    color: #173d2b;
+    font-family: "Poppins", sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.section-title > span {
+    color: #87958d;
+    font-size: 12px;
+}
+
+.today-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.today-list label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #4f6659;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.today-list input {
+    width: 17px;
+    height: 17px;
+    accent-color: #075737;
+}
+
+.dashboard-detail-columns {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    border-top: 1px solid #e6eae4;
+}
+
+.recent-section {
+    border-right: 1px solid #e6eae4;
+}
+
+.recent-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.recent-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 7px 0;
+    color: #4f6659;
+    font-size: 13px;
+}
+
+.recent-list small {
+    color: #96a19b;
+}
+
+.saved-links {
+    display: flex;
+    gap: 28px;
+}
+
+.saved-links a {
+    display: flex;
+    flex-direction: column;
+    color: #52685c;
+    font-size: 12px;
+    text-decoration: none;
+}
+
+.saved-links strong {
+    color: #173d2b;
+    font: 600 28px "Cormorant Garamond", Georgia, serif;
+}
+
 .simple-action {
     display: grid;
     grid-template-columns: 28px 1fr 18px;
@@ -747,5 +849,19 @@ body {
 
     .simple-actions {
         grid-template-columns: 1fr;
+    }
+
+    .today-list,
+    .dashboard-detail-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .today-list {
+        gap: 14px;
+    }
+
+    .recent-section {
+        border-right: 0;
+        border-bottom: 1px solid #e6eae4;
     }
 }

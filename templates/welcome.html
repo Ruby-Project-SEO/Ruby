@@ -16,6 +16,42 @@
             <button type="submit">Ask Ruby</button>
         </form>
 
+        <div class="dashboard-details">
+            <section class="today-section">
+                <div class="section-title">
+                    <h2>Today</h2>
+                    <span>3 tasks</span>
+                </div>
+                <div class="today-list">
+                    <label><input type="checkbox"><span>Drink water</span></label>
+                    <label><input type="checkbox"><span>Morning routine</span></label>
+                    <label><input type="checkbox"><span>Take medication</span></label>
+                </div>
+            </section>
+
+            <div class="dashboard-detail-columns">
+                <section class="recent-section">
+                    <div class="section-title">
+                        <h2>Recent activity</h2>
+                    </div>
+                    <ul class="recent-list">
+                        <li><span>Sleep recommendations</span><small>Today</small></li>
+                        <li><span>Vegetarian dinner ideas</span><small>Yesterday</small></li>
+                    </ul>
+                </section>
+
+                <section class="saved-section">
+                    <div class="section-title">
+                        <h2>Saved</h2>
+                    </div>
+                    <div class="saved-links">
+                        <a href="{{ url_for('recipe') }}"><strong>2</strong><span>Recipes</span></a>
+                        <a href="#"><strong>1</strong><span>Routine</span></a>
+                    </div>
+                </section>
+            </div>
+        </div>
+
         <div class="simple-actions">
             <a class="simple-action" href="{{ url_for('recipe') }}">
                 <i class="bi bi-egg-fried"></i>
