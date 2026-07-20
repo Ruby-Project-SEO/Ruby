@@ -477,7 +477,6 @@ body {
 .ruby-response {
     padding: 20px 22px;
     border: 1px solid #dce2da;
-    border-left: 4px solid #075737;
     border-radius: 14px;
     background: #fff;
     color: #4f6659;
@@ -502,16 +501,8 @@ body {
     background: #fff;
 }
 
-.remedy-sidebar-label {
-    color: #87958d;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-}
-
 .remedy-sidebar h2 {
-    margin: 7px 0 5px;
+    margin: 0 0 5px;
     color: #173d2b;
     font: 600 25px "Cormorant Garamond", Georgia, serif;
 }
@@ -559,7 +550,7 @@ body {
 }
 
 .ruby-response-error {
-    border-left-color: #b36a4c;
+    border-color: #e5cfc4;
     background: #fffaf7;
 }
 
