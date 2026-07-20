@@ -1,30 +1,38 @@
 {% extends "layout.html" %}
 {% block content %}
-<section class="recipe-hero">
-    <div class="recipe-hero-overlay"></div>
+<section class="dashboard-page simple-dashboard">
+    <div class="dashboard-container simple-dashboard-container">
+        <div class="dashboard-header simple-dashboard-header">
+            <div>
+                <span class="dashboard-label">Your wellness dashboard</span>
+                <h1>Good day{% if username %}, {{ username }}{% endif %}</h1>
+                <p>What can Ruby help you with today?</p>
+            </div>
+        </div>
 
-    <div class="recipe-hero-content">
-        <span class="recipe-hero-label">
-            Improve your wellness in a variety of ways
-        </span>
-
-        <h1>
-            Welcome {{username}}
-        </h1>
-
-        <p>
-            What's your issue today?
-        </p>
-
-        <form class="recipe-search" action="#" method="GET">
-            <input type="text" name="search" placeholder="Enter health related issue..." aria-label="Search recipes">
-            <button type="submit">
-                <i class="bi bi-search"></i>
-            </button>
+        <form class="wellness-search" action="#" method="GET">
+            <i class="bi bi-search"></i>
+            <input type="text" name="search" placeholder="Ask a wellness question..." aria-label="Ask a wellness question">
+            <button type="submit">Ask Ruby</button>
         </form>
 
+        <div class="simple-actions">
+            <a class="simple-action" href="{{ url_for('recipe') }}">
+                <i class="bi bi-egg-fried"></i>
+                <span>Recipes</span>
+                <i class="bi bi-arrow-right"></i>
+            </a>
+            <a class="simple-action" href="#">
+                <i class="bi bi-capsule"></i>
+                <span>Drug comparison</span>
+                <i class="bi bi-arrow-right"></i>
+            </a>
+            <a class="simple-action" href="#">
+                <i class="bi bi-droplet"></i>
+                <span>Wellness routine</span>
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
     </div>
 </section>
 {% endblock %}
-
-
