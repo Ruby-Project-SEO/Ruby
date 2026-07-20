@@ -1,7 +1,30 @@
 {% extends "layout.html" %}
 {% block content %}
- <h2>Welcome {{username}}! </h2>
- <p> How are you doing today, and what is your problem?</p>
+<section class="recipe-hero">
+    <div class="recipe-hero-overlay"></div>
+
+    <div class="recipe-hero-content">
+        <span class="recipe-hero-label">
+            Improve your wellness in a variety of ways
+        </span>
+
+        <h1>
+            Welcome {{username}}
+        </h1>
+
+        <p>
+            What's your issue today?
+        </p>
+
+        <form class="recipe-search" action="#" method="GET">
+            <input type="text" name="search" placeholder="Enter health related issue..." aria-label="Search recipes">
+            <button type="submit">
+                <i class="bi bi-search"></i>
+            </button>
+        </form>
+
+    </div>
+</section>
 {% endblock %}
 
 

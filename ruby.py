@@ -44,6 +44,7 @@ def get_food_price(food_id):
                           params={"apiKey": spoonacular_key})
   
   info = response.json()
+  print(info)
 
   price_in_cents = info.get("price", None)
 
