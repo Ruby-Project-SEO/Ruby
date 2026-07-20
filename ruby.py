@@ -152,15 +152,6 @@ def show_db():
     return rows
 
 
-
-def delete_food(row_num):
-    with engine.connect() as connection:
-        connection.execute(
-            db.text("DELETE FROM food_status WHERE rowid = :row"),
-            {"row": row_num})
-        connection.commit()
-
-
 def delete_saved(table, row_num):
     if table not in ["food_status", "drug_status", "cosmetic_status"]:
         return
