@@ -267,14 +267,13 @@ body {
 /* Recipe Hero Section */
 
 .recipe-hero {
-    height: calc(100vh - 76px);
+    min-height: 100vh;
     width: 100%;
     position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 0px 24px;
-    overflow: hidden;
     background: linear-gradient(rgba(5, 61, 39, 0.72), rgba(5, 61, 39, 0.82)), url("../static/images/recipe-hero.jpg");
     background-size: cover;
     background-position: center;
@@ -1236,4 +1235,85 @@ body {
     .tracked-details {
         grid-template-columns: 1fr;
     }
+}
+
+
+/* CSS for Routine.HTML Page */
+ 
+.routine-card{
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    padding: 2rem;
+    max-width: 900px;
+    margin: 2rem auto;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+
+.routine-card-box{
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+    text-align: center;
+}
+
+.routine-card-box h2 {
+    font-size: 18px;
+    margin: 0 0 0.5rem;
+    color: #d4f45a;
+}
+
+.routine-card-box p,
+.routine-card-box ol {
+    margin: 0;
+    color: #e8ede4;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.routine-card-box ol {
+    text-align: left;
+    padding-left: 1.25rem;
+}
+
+.routine-card-box--wide {
+    grid-column: 1 / -1;
+}
+
+.routine-title{
+    grid-column: 1 / -1;
+    text-align: center;
+    font-family: Georgia, serif;
+    color: #fff;
+    font-size: 22px;
+    margin: 0 0 1rem;
+}
+
+#routine-loading {
+    max-width: 520px;
+    margin: 1.5rem auto 0;
+    padding: 0.9rem 1.5rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 30px;
+    text-align: center;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    color: #d4f45a;
+    animation: routine-loading-pulse 1.4s ease-in-out infinite;
+}
+
+#routine-loading-name {
+    font-weight: 600;
+    color: #fff;
+}
+
+@keyframes routine-loading-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
 }

@@ -25,6 +25,19 @@ class RubyGuidance(BaseModel):
         description='Food, drugs, and cosmetics ranked from most to least relevant, each exactly once.'
     )
 
+class RoutineStep(BaseModel):
+    product: str = Field(description='Product or step name, in the order it should be used.')
+    reason: str = Field(description='One short sentence on why this step is included or how to use it.')
+    tip: str = Field(description='One short practical tip for this specific step, e.g. patch testing or application technique.')
+
+class RubyRoutine(BaseModel):
+    introduction: str = Field(description='1-2 sentence general overview of how this product fits into a routine.')
+    product_type: str = Field(description='The likely product category, e.g. Moisturizer, Cleanser, Shampoo, Serum, Sunscreen.')
+    routine_steps: list[RoutineStep] = Field(description='Ordered routine steps. Reference product categories, not specific brand names other than the one the user provided.')
+    frequency: str = Field(description='When and how often to use it, e.g. "morning" or "as needed, 2-3x per week".')
+    steps: list[str] = Field(description='Short practical tips, such as patch testing or application technique.')
+    warnings: list[str] = Field(description='Cautions, e.g. stop use if irritation occurs, consult a professional for persistent symptoms.')
+
 def get_secret_key():
     environment_key = os.environ.get('SECRET_KEY')
     if environment_key:
@@ -162,6 +175,36 @@ def generate_ruby_answer(client, model, question):
     )
     return RubyGuidance.model_validate_json(response.text)
 
+def generate_routine_answer(client, model, product_name):
+    response = client.models.generate_content(
+        model=model,
+        contents=product_name,
+        config=types.GenerateContentConfig(
+            system_instruction=(
+                "You are Ruby, a wellness product routine assistant. "
+                "The user will provide the name of a skincare, haircare, cosmetic, or personal care product. "
+                "Explain how that product can generally fit into a safe, practical routine. "
+                "Identify the likely product type, such as moisturizer, cleanser, shampoo, conditioner, serum, or sunscreen. "
+                "Provide the routine in a clear order and explain when the product should be used, such as morning, evening, wash day, or as needed. "
+                "Include general frequency guidance when appropriate. "
+                "When referencing other products in the routine, use general product categories such as 'a gentle cleanser' or 'a leave-in conditioner' rather than specific brand names, since you cannot verify what specific products exist or what they contain. "
+                "Do not invent exact ingredients, benefits, warnings, or directions that are not confirmed by the product name. "
+                "If the product name is vague or could refer to multiple products, clearly state that the guidance is general and tell the user to check the product label for exact directions. "
+                "Do not diagnose conditions, prescribe treatment, or claim that the product will cure a medical issue. "
+                "Recommend patch testing for new skincare or cosmetic products and stopping use if irritation occurs. "
+                "Encourage the user to consult a healthcare professional for severe, persistent, or worsening symptoms. "
+                "Use plain text without Markdown. Keep each field concise and practical."
+            ),
+            thinking_config=types.ThinkingConfig(thinking_level='minimal'),
+            max_output_tokens=800,
+            response_mime_type = 'application/json',
+            response_schema = RubyRoutine
+        )
+    )
+    return RubyRoutine.model_validate_json(response.text)
+
+
+
 @app.route('/')
 def home():
     return render_dashboard()
@@ -298,9 +341,17 @@ def delete_task(task_id):
 def recipe():
     return render_template('recipe.html')
 
-@app.route('/routine')
+@app.route('/routine', methods= ["GET", "POST"])
 def routine():
-    return render_template('routine.html')
+    if request.method == "POST":
+        api_key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GENAI_KEY')
+        client = genai.Client(api_key=api_key)
+        model = os.environ.get('GEMINI_MODEL', 'gemini-3.1-flash-lite')
+        product = request.form.get("product_name")
+        guidance = generate_routine_answer(client, model, product)
+        return render_template('routine.html', routine= guidance, product_title = product)
+    else:
+        return render_template('routine.html', routine = None)
 
 
 
