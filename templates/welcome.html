@@ -50,6 +50,19 @@
                     {% endfor %}
                 </div>
             </aside>
+            {% if ruby_options %}
+            <section class="ruby-options">
+              <h2>Top {{ ruby_category }} options</h2>
+              <div class="option-list">
+                {% for item in ruby_options %}
+                <div class="remedy-card">
+                  <span>{{ item.get('Food') or item.get('Drug') or item.get('Cosmetic') }}</span>
+                  <span>{{ item.Price }}</span>
+                </div>
+                {% endfor %}
+              </div>
+            </section>
+            {% endif %}
             {% endif %}
         </div>
         {% endif %}

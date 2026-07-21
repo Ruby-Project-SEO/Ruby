@@ -11,7 +11,17 @@ from flask_behind_proxy import FlaskBehindProxy
 from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel, Field
-from ruby import search_recipes, get_recipe_details
+from ruby import search_recipes, get_recipe_details, generate_drug_comparison
+
+
+
+from ruby import (generate_food_remedies,
+                  generate_drug_remedies,
+                  generate_cosmetic_remedies,
+                  select_item,
+                  show_db,
+                  delete_saved,
+                  get_link)
 
 app = Flask(__name__)
 proxied = FlaskBehindProxy(app)
@@ -147,6 +157,8 @@ def get_dashboard_context():
         context['ruby_error'] = ruby_error
         context['ruby_question'] = error_question
         context.pop('ruby_answer', None)
+
+
     return context
 
 def render_dashboard(**extra_context):
@@ -255,14 +267,25 @@ def ask_ruby():
             ranking = list(dict.fromkeys(guidance.ranked_categories))
             ranking.extend(category for category in ('food', 'drugs', 'cosmetics') if category not in ranking)
             answer = guidance.answer or 'Ruby could not generate a response. Please try again.'
+            top_category = ranking[0]
+            if top_category == 'food':
+                options = generate_food_remedies(question)
+            elif top_category == 'drugs':
+                options = generate_drug_remedies(question)
+            else:
+                options = generate_cosmetic_remedies(question)
         else:
             ranking = []
+            options = []
+            top_category = None
             answer = 'Ruby can only help with wellness-related questions.'
         session['ruby_response'] = {
             'ruby_question': question,
             'ruby_answer': answer,
             'ruby_ranking': ranking,
-            'ruby_is_wellness_related': guidance.is_wellness_related
+            'ruby_is_wellness_related': guidance.is_wellness_related,
+            'ruby_options': options,
+            'ruby_category': top_category
         }
         return redirect(url_for('home'))
     except errors.ServerError as error:
@@ -279,6 +302,8 @@ def ask_ruby():
         session['ruby_error'] = 'Ruby could not answer right now. Please try again shortly.'
         session['ruby_error_question'] = question
         return redirect(url_for('home'))
+
+
 
 @app.post('/tasks')
 def add_task():
@@ -408,6 +433,27 @@ def routine():
         return render_template('routine.html', routine= guidance, product_title = product)
     else:
         return render_template('routine.html', routine = None)
+
+
+@app.route('/drug-comparison')
+def drug_comparison():
+    return render_template('drug_comparison.html')
+
+
+@app.post('/compare-drugs')
+def compare_drugs():
+  drug1 = request.form.get('drug1', '').strip()
+  drug2 = request.form.get('drug2', '').strip()
+
+  if not drug1 or not drug2:
+    return redirect(url_for('drug_comparison'))
+
+  comparison = generate_drug_comparison(drug1, drug2)
+
+  return render_template('drug_comparison.html',
+                          comparison=comparison,
+                          drug1=drug1,
+                          drug2=drug2)
 
 
 if __name__ == '__main__':
