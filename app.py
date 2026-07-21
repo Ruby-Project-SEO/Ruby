@@ -64,6 +64,18 @@ def get_secret_key():
 
 app.config['SECRET_KEY'] = get_secret_key()
 
+@app.template_filter('format_price')
+def format_price(value):
+    if value in (None, '', 'N/A', 'Price not available'):
+        return 'Price unavailable'
+    try:
+        amount = float(str(value).replace('$', '').strip())
+    except (TypeError, ValueError):
+        return str(value)
+    if amount <= 0:
+        return 'Price unavailable'
+    return f'${amount:.2f}'
+
 def get_database():
     connection = sqlite3.connect(DATABASE)
     connection.row_factory = sqlite3.Row

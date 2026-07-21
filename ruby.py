@@ -64,12 +64,16 @@ def get_recipe_details(recipe_id):
 
 
 def search_food(food):
+    if not spoonacular_key:
+      raise RuntimeError("SPOONACULAR_KEY is not configured")
 
     response = requests.get(foodurl,
                             params={"apiKey": spoonacular_key,
                                     "query": food,
-                                    "number": 1})
-    
+                                    "number": 1},
+                            timeout=10)
+    response.raise_for_status()
+
     food_status = response.json()
 
     if "products" not in food_status:
@@ -79,9 +83,13 @@ def search_food(food):
     
     items = food_status["products"]
     for item in items:
+      image = item.get("image")
+      if image and not image.startswith(("http://", "https://")):
+        image = f"https://img.spoonacular.com/products/{image}"
       results.append({
         "Food": item.get("title", "N/A"),
-        "Price": get_food_price(item.get("id", "N/A"))
+        "Price": "Price not available",
+        "Image": image
       })
     return results
   
@@ -92,14 +100,12 @@ def get_food_price(food_id):
   
   info = response.json()
 
-  price_in_cents = info.get("price", None)
+  price = info.get("price", None)
 
-  if price_in_cents is None:
+  if price is None or price <= 0:
     return "Price not available"
 
-  price_in_usd = price_in_cents / 100
-
-  return f"${price_in_usd}"
+  return f"${price:.2f}"
 
   
 
@@ -214,7 +220,7 @@ def get_link(item):
 def generate_food_remedies(issue):
   #prompt for gemini, modify it here
   prompt = f"""
-  Given an issue, generate a list of 10 foods in a comma separated list to help the person with that issue.
+  Given an issue, generate a list of 6 foods in a comma separated list to help the person with that issue.
   These foods must be available from the spoonacular API.
   Issue: {issue}
   """
@@ -225,14 +231,26 @@ def generate_food_remedies(issue):
   )
 
   foods = resp.text.split(",")
-  foods = [food.strip() for food in foods]
+  foods = [food.strip() for food in foods if food.strip()][:6]
 
   all_results = []
+  spoonacular_available = True
 
   for food in foods:
-    result = search_food(food)
+    result = None
+    if spoonacular_available:
+      try:
+        result = search_food(food)
+      except (requests.RequestException, RuntimeError):
+        spoonacular_available = False
     if result:
-      all_results.extend(result)
+      all_results.append(result[0])
+    else:
+      all_results.append({
+        "Food": food,
+        "Price": "Price not available",
+        "Image": None
+      })
   
   return all_results
 
@@ -338,4 +356,3 @@ def generate_drug_comparison(drug1, drug2):
   )
 
   return resp.text
-

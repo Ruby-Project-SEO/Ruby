@@ -52,15 +52,32 @@
             </aside>
             {% if ruby_options %}
             <section class="ruby-options">
-              <h2>Top {{ ruby_category }} options</h2>
-              <div class="option-list">
-                {% for item in ruby_options %}
-                <div class="remedy-card">
-                  <span>{{ item.get('Food') or item.get('Drug') or item.get('Cosmetic') }}</span>
-                  <span>{{ item.Price }}</span>
+                <div class="ruby-options-heading">
+                    <div>
+                        <span><i class="bi bi-stars"></i> Suggested for you</span>
+                        <h2>Top {{ ruby_category|capitalize }} Options</h2>
+                    </div>
+                    <p>{{ ruby_options|length }} results</p>
                 </div>
-                {% endfor %}
-              </div>
+                <div class="option-list">
+                    {% for item in ruby_options %}
+                    <article class="remedy-card">
+                        <div class="option-image">
+                            {% if item.get('Image') %}
+                            <img src="{{ item.Image }}" alt="" loading="lazy">
+                            {% else %}
+                            <i class="bi {% if ruby_category == 'food' %}bi-egg-fried{% elif ruby_category == 'drugs' %}bi-capsule{% else %}bi-droplet{% endif %}"></i>
+                            {% endif %}
+                            <span class="option-rank">{{ loop.index }}</span>
+                        </div>
+                        <div class="option-details">
+                            <h3>{{ item.get('Food') or item.get('Drug') or item.get('Cosmetic') }}</h3>
+                            <p>{{ ruby_category|capitalize }} option</p>
+                        </div>
+                        <span class="option-price">{{ item.Price|format_price }}</span>
+                    </article>
+                    {% endfor %}
+                </div>
             </section>
             {% endif %}
             {% endif %}
