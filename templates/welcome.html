@@ -59,9 +59,19 @@
                     </div>
                     <p>{{ ruby_options|length }} results</p>
                 </div>
+                {% if ruby_category == 'food' %}
+                <form id="food-selection-form" action="{{ url_for('recipe') }}" method="POST">
+                    <input id="selected-foods" type="hidden" name="ingredients">
+                {% endif %}
                 <div class="option-list">
                     {% for item in ruby_options %}
+                    {% set option_name = item.get('Food') or item.get('Drug') or item.get('Cosmetic') %}
+                    {% if ruby_category == 'food' %}
+                    <label class="remedy-card selectable-remedy">
+                        <input class="food-option-checkbox" type="checkbox" value="{{ option_name }}">
+                    {% else %}
                     <article class="remedy-card">
+                    {% endif %}
                         <div class="option-image">
                             {% if item.get('Image') %}
                             <img src="{{ item.Image }}" alt="" loading="lazy">
@@ -71,13 +81,25 @@
                             <span class="option-rank">{{ loop.index }}</span>
                         </div>
                         <div class="option-details">
-                            <h3>{{ item.get('Food') or item.get('Drug') or item.get('Cosmetic') }}</h3>
+                            <h3>{{ option_name }}</h3>
                             <p>{{ ruby_category|capitalize }} option</p>
                         </div>
                         <span class="option-price">{{ item.Price|format_price }}</span>
+                        {% if ruby_category == 'food' %}
+                        <span class="option-select"><i class="bi bi-plus-lg"></i></span>
+                    </label>
+                    {% else %}
                     </article>
+                    {% endif %}
                     {% endfor %}
                 </div>
+                {% if ruby_category == 'food' %}
+                    <div class="food-selection-actions">
+                        <span id="food-selection-count">Select foods to use as ingredients</span>
+                        <button id="find-recipes-button" type="submit" disabled>Find recipes</button>
+                    </div>
+                </form>
+                {% endif %}
             </section>
             {% endif %}
             {% endif %}
@@ -206,6 +228,26 @@
         submitButton.disabled = true;
         submitButton.textContent = 'Asking…';
     });
+
+    const foodSelectionForm = document.getElementById('food-selection-form');
+
+    if (foodSelectionForm) {
+        const foodCheckboxes = [...foodSelectionForm.querySelectorAll('.food-option-checkbox')];
+        const selectedFoodsInput = document.getElementById('selected-foods');
+        const selectionCount = document.getElementById('food-selection-count');
+        const findRecipesButton = document.getElementById('find-recipes-button');
+
+        const updateFoodSelection = () => {
+            const selectedFoods = foodCheckboxes.filter((checkbox) => checkbox.checked);
+            selectedFoodsInput.value = selectedFoods.map((checkbox) => checkbox.value).join(', ');
+            findRecipesButton.disabled = selectedFoods.length === 0;
+            selectionCount.textContent = selectedFoods.length
+                ? `${selectedFoods.length} selected`
+                : 'Select foods to use as ingredients';
+        };
+
+        foodCheckboxes.forEach((checkbox) => checkbox.addEventListener('change', updateFoodSelection));
+    }
 
     document.querySelectorAll('.task-row').forEach((taskRow) => {
         const editButton = taskRow.querySelector('.task-edit-toggle');
