@@ -2,6 +2,7 @@ import os
 import secrets
 import sqlite3
 import json
+import requests
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -11,6 +12,7 @@ from flask_behind_proxy import FlaskBehindProxy
 from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel, Field
+from ruby import search_recipes, get_recipe_details
 
 app = Flask(__name__)
 proxied = FlaskBehindProxy(app)
@@ -294,10 +296,52 @@ def delete_task(task_id):
             add_activity(connection, user_id, f'Deleted task: {task["title"]}')
     return redirect(url_for('home'))
 
-@app.route('/recipe')
+@app.route('/recipe', methods=['GET', 'POST'])
 def recipe():
-    return render_template('recipe.html')
+    recipes = []
+    error = None
+    ingredients = ""
 
+    if request.method == 'POST':
+        ingredients = request.form.get('ingredients', '').strip()
+
+        if not ingredients:
+            error = "Please enter at least one ingredient."
+        else:
+            try:
+                recipes = search_recipes(ingredients)
+
+                if not recipes:
+                    error = "No recipes were found for those ingredients."
+
+            except requests.exceptions.HTTPError as http_error:
+                app.logger.exception("Spoonacular HTTP error")
+                error = "The recipe api returned an error."
+
+            except requests.exceptions.RequestException: 
+                app.logger.exception("Spoonacular connection error")
+                error = "The recipe api could not be reached."
+
+            except Exception:
+                app.logger.exception("Recipe search failed")
+                error = "Recipe could not be loaded right now."
+
+    return render_template('recipe.html', recipes=recipes, ingredients=ingredients, error=error)
+
+@app.route('/recipe/<int:recipe_id>')
+def recipe_details(recipe_id):
+    recipe = get_recipe_details(recipe_id)
+    print(recipe)
+    return render_template('recipe_details.html', recipe=None, error="The fulle recipe could not be loaded right now.")
+    # try:
+    #     recipe = get_recipe_details(recipe_id)
+
+    #     return render_template('recipe_details.html', recipe=recipe, error=None)
+
+    # except Exception:
+    #     app.logger.exception("Recipe details failed")
+
+    #     return render_template('recipe_details.html', recipe=None, error="The fulle recipe could not be loaded right now.")
 
 
 if __name__ == '__main__':

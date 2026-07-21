@@ -17,6 +17,51 @@ drugurl = "https://api.fda.gov/drug/label.json"
 cosmeticurl = "https://world.openbeautyfacts.org/cgi/search.pl"
 engine = db.create_engine('sqlite:///item_status.db')
 
+def search_recipes(ingredients):
+  spoonacular_key = os.getenv("SPOONACULAR_KEY")
+
+  if not spoonacular_key:
+    raise RuntimeError("SPOONACULAR_KEY is not configured")
+
+  url = "https://api.spoonacular.com/recipes/findByIngredients"
+
+  response = requests.get(
+    url,
+    params={
+      "apiKey": spoonacular_key,
+      "ingredients": ingredients,
+      "number": 12,
+      "ranking": 1,
+      "ignorePantry": True
+    },
+    timeout=10
+  )
+
+  response.raise_for_status()
+
+  return response.json()
+
+def get_recipe_details(recipe_id):
+  poonacular_key = os.getenv("SPOONACULAR_KEY")
+
+  if not spoonacular_key:
+    raise RuntimeError("SPOONACULAR_KEY is not configured")
+
+  url = "https://api.spoonacular.com/recipes/findByIngredients"
+
+  response = requests.get(
+    url,
+    params={
+      "apiKey": spoonacular_key,
+      "includeNutrition": False
+    },
+    timeout=10
+  )
+
+  response.raise_for_status()
+
+  return response.json()
+
 
 def search_food(food):
 
