@@ -1,7 +1,6 @@
 import os
 import secrets
 import sqlite3
-import json
 import requests
 from pathlib import Path
 from typing import Literal
@@ -20,6 +19,9 @@ DATABASE = Path(app.instance_path) / 'ruby.db'
 SECRET_FILE = Path(app.instance_path) / 'secret_key'
 
 class RubyGuidance(BaseModel):
+    is_wellness_related: bool = Field(
+        description='True only when the user is asking about health, wellness, nutrition, fitness, sleep, skincare, medication safety, or personal care.'
+    )
     answer: str = Field(description='Concise educational wellness guidance in plain text.')
     ranked_categories: list[Literal['food', 'drugs', 'cosmetics']] = Field(
         min_length=3,
@@ -125,10 +127,11 @@ def get_dashboard_context():
             ''',
             (user_id,)
         ).fetchall()
-        ruby_response = connection.execute(
-            'SELECT question, answer, ranking FROM ruby_responses WHERE user_id = ?',
+        connection.execute(
+            'DELETE FROM ruby_responses WHERE user_id = ?',
             (user_id,)
-        ).fetchone()
+        )
+    ruby_response = session.pop('ruby_response', None)
     completed_count = sum(task['completed'] for task in tasks)
     context = {
         'username': session.get('username'),
@@ -137,9 +140,7 @@ def get_dashboard_context():
         'completed_count': completed_count
     }
     if ruby_response:
-        context['ruby_question'] = ruby_response['question']
-        context['ruby_answer'] = ruby_response['answer']
-        context['ruby_ranking'] = json.loads(ruby_response['ranking'])
+        context.update(ruby_response)
     ruby_error = session.pop('ruby_error', None)
     error_question = session.pop('ruby_error_question', None)
     if ruby_error:
@@ -160,6 +161,11 @@ def generate_ruby_answer(client, model, question):
         config=types.GenerateContentConfig(
             system_instruction=(
                 'You are Ruby, a concise wellness information assistant. '
+                'First decide whether the request is directly related to health, wellness, nutrition, fitness, sleep, skincare, medication safety, or personal care. '
+                'Requests about literature, schoolwork, coding, entertainment, politics, general knowledge, or other unrelated subjects are not wellness-related. '
+                'Do not answer, summarize, or creatively reinterpret unrelated requests as wellness topics. '
+                'For every unrelated request, set is_wellness_related to false and set answer exactly to: Ruby can only help with wellness-related questions. '
+                'For a related request, set is_wellness_related to true and answer normally. '
                 'Give general educational guidance in plain language. '
                 'Do not diagnose conditions, prescribe treatment, or recommend changing medication dosages. '
                 'Encourage professional medical care when symptoms may require it. '
@@ -245,23 +251,19 @@ def ask_ruby():
                 raise
             app.logger.warning('Gemini primary model unavailable; using fallback model')
             guidance = generate_ruby_answer(client, fallback_model, question)
-        ranking = list(dict.fromkeys(guidance.ranked_categories))
-        ranking.extend(category for category in ('food', 'drugs', 'cosmetics') if category not in ranking)
-        answer = guidance.answer or 'Ruby could not generate a response. Please try again.'
-        user_id = get_user_id()
-        with get_database() as connection:
-            connection.execute(
-                '''
-                INSERT INTO ruby_responses (user_id, question, answer, ranking, updated_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    question = excluded.question,
-                    answer = excluded.answer,
-                    ranking = excluded.ranking,
-                    updated_at = CURRENT_TIMESTAMP
-                ''',
-                (user_id, question, answer, json.dumps(ranking))
-            )
+        if guidance.is_wellness_related:
+            ranking = list(dict.fromkeys(guidance.ranked_categories))
+            ranking.extend(category for category in ('food', 'drugs', 'cosmetics') if category not in ranking)
+            answer = guidance.answer or 'Ruby could not generate a response. Please try again.'
+        else:
+            ranking = []
+            answer = 'Ruby can only help with wellness-related questions.'
+        session['ruby_response'] = {
+            'ruby_question': question,
+            'ruby_answer': answer,
+            'ruby_ranking': ranking,
+            'ruby_is_wellness_related': guidance.is_wellness_related
+        }
         return redirect(url_for('home'))
     except errors.ServerError as error:
         if error.code == 503:
@@ -343,16 +345,16 @@ def delete_task(task_id):
 def recipe():
     recipes = []
     error = None
-    ingredients = ""
+    searched_ingredients = ""
 
     if request.method == 'POST':
-        ingredients = request.form.get('ingredients', '').strip()
+        searched_ingredients = request.form.get('ingredients', '').strip()
 
-        if not ingredients:
+        if not searched_ingredients:
             error = "Please enter at least one ingredient."
         else:
             try:
-                recipes = search_recipes(ingredients)
+                recipes = search_recipes(searched_ingredients)
 
                 if not recipes:
                     error = "No recipes were found for those ingredients."
@@ -373,7 +375,12 @@ def recipe():
                 app.logger.exception("Recipe search failed")
                 error = "Recipe could not be loaded right now."
 
-    return render_template('recipe.html', recipes=recipes, ingredients=ingredients, error=error)
+    return render_template(
+        'recipe.html',
+        recipes=recipes,
+        searched_ingredients=searched_ingredients,
+        error=error
+    )
 
 @app.route('/recipe/<int:recipe_id>')
 def recipe_details(recipe_id):

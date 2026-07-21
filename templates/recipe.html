@@ -18,8 +18,8 @@
             Discover delicous meals using ingredients you already have.
         </p>
 
-        <form class="recipe-search" action="{{ url_for('recipe') }}" method="POST">
-            <input type="text" name="ingredients" value="{{ ingredients }}" placeholder="Try chicken, rice, broccoli..." aria-label="Search recipes by ingredients" required>
+        <form class="recipe-search" action="{{ url_for('recipe') }}" method="POST" autocomplete="off">
+            <input type="text" name="ingredients" value="" placeholder="Try chicken, rice, broccoli..." aria-label="Search recipes by ingredients" autocomplete="off" required>
             <button type="submit" aria-label="Search recipes">
                 <i class="bi bi-search"></i>
             </button>
@@ -37,7 +37,7 @@
 <section class="recipe-results container py-5">
     <div class="recipe-results-heading mb-4">
         <h2>Recipe Results</h2>
-        <p>Recipes using: {{ ingredients }}</p>
+        <p>Recipes using: {{ searched_ingredients }}</p>
     </div>
 
     <div class="row g-4">
@@ -87,5 +87,11 @@
 
 </section>
 {% endif %}
+
+<script>
+    window.addEventListener("pageshow", function () {
+        document.querySelector(".recipe-search").reset();
+    });
+</script>
 
 {% endblock content %}

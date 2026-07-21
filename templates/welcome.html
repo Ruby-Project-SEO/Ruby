@@ -10,22 +10,26 @@
             </div>
         </div>
 
-        <form id="ruby-question-form" class="wellness-search" action="{{ url_for('ask_ruby') }}" method="POST">
+        <form id="ruby-question-form" class="wellness-search" action="{{ url_for('ask_ruby') }}" method="POST" autocomplete="off">
             <i class="bi bi-search"></i>
-            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="Ask a wellness question..." aria-label="Ask a wellness question" required>
+            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="Ask a wellness question..." aria-label="Ask a wellness question" autocomplete="off" required>
             <button type="submit">Ask Ruby</button>
         </form>
 
         {% if ruby_answer or ruby_error %}
-        <div class="ruby-result-layout {% if ruby_error %}single-result{% endif %}">
+        <div class="ruby-result-layout {% if ruby_error or not ruby_is_wellness_related %}single-result{% endif %}">
             <section class="ruby-response {% if ruby_error %}ruby-response-error{% endif %}" aria-live="polite">
                 <div class="ruby-response-heading">
                     <span>Ruby</span>
                     <small>AI-generated wellness information</small>
                 </div>
-                <p>{{ ruby_answer or ruby_error }}</p>
+                {% if ruby_answer %}
+                <p><span id="typed-ruby-response">{{ ruby_answer }}</span><span id="ruby-response-caret" class="response-typing-caret" aria-hidden="true"></span></p>
+                {% else %}
+                <p>{{ ruby_error }}</p>
+                {% endif %}
             </section>
-            {% if ruby_answer %}
+            {% if ruby_answer and ruby_is_wellness_related %}
             <aside class="remedy-sidebar">
                 <h2>Come here first</h2>
                 <div class="remedy-links">
@@ -148,7 +152,33 @@
         window.setTimeout(typeGreeting, 250);
     }
 
+    const rubyResponse = document.getElementById('typed-ruby-response');
+    const rubyResponseCaret = document.getElementById('ruby-response-caret');
+
+    if (rubyResponse && rubyResponseCaret) {
+        if (reducedMotion) {
+            rubyResponseCaret.remove();
+        } else {
+            const responseText = rubyResponse.textContent;
+            rubyResponse.textContent = '';
+            let responseIndex = 0;
+            const typeResponse = () => {
+                rubyResponse.textContent += responseText.slice(responseIndex, responseIndex + 2);
+                responseIndex += 2;
+                if (responseIndex < responseText.length) {
+                    window.setTimeout(typeResponse, 12);
+                } else {
+                    rubyResponseCaret.remove();
+                }
+            };
+            window.setTimeout(typeResponse, 200);
+        }
+    }
+
     const rubyQuestionForm = document.getElementById('ruby-question-form');
+    {% if not ruby_answer and not ruby_error %}
+    rubyQuestionForm.reset();
+    {% endif %}
     rubyQuestionForm.addEventListener('submit', () => {
         const submitButton = rubyQuestionForm.querySelector('button');
         submitButton.disabled = true;

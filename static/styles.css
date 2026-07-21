@@ -639,6 +639,16 @@ body {
     line-height: 1.65;
 }
 
+.response-typing-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 3px;
+    vertical-align: -2px;
+    background: #173d2b;
+    animation: caret-blink .8s step-end infinite;
+}
+
 .ruby-response-error {
     border-color: #e5cfc4;
     background: #fffaf7;
@@ -1014,7 +1024,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .typing-caret {
+    .typing-caret,
+    .response-typing-caret {
         display: none;
     }
 }
