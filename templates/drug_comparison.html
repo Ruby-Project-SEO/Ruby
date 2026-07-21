@@ -16,9 +16,9 @@
             Let us help you decide what's best for you.
         </p>
 
-        <form id="drug-compare-form" class="recipe-search" action="{{ url_for('drug_comparison') }}" method="post">
-            <input id="drug1-text" type="text" name="product_name"  maxlength="1000" placeholder="Enter your first drug..." aria-label="Enter drugs to compare" required>
-            <input id="drug2-text" type="text" name="product_name"  maxlength="1000" placeholder="Enter your second drug..." aria-label="Enter drugs to compare" required>
+        <form id="drug-compare-form" class="recipe-search" action="{{ url_for('compare_drugs') }}" method="post">
+            <input id="drug1-text" type="text" name="drug1"  maxlength="1000" placeholder="Enter your first drug..." aria-label="Enter drugs to compare" required>
+            <input id="drug2-text" type="text" name="drug2"  maxlength="1000" placeholder="Enter your second drug..." aria-label="Enter drugs to compare" required>
             <button type="submit">
                 <i class="bi bi-search"></i>
             </button>
@@ -28,63 +28,24 @@
 
 
 
-        {% if routine %}
-            <div class="routine-card">
-
-                <h3 class="routine-title"> Specialized Routine with {{product_title}}</h3>
-
-                <div class="routine-card-box">
-                    <h2>Overview</h2>
-                    <p>{{routine.introduction}}</p>
+        {% if comparison %}
+            <div class="compare-layout"> 
+              <section class="compare-response">
+                <div class="response-heading">
+                  <small></small>
                 </div>
-                
-                <div class="routine-card-box">
-                    <h2>Product Type</h2>
-                    <p>{{routine.product_type}}</p>
-                </div>
-
-                
-                <div class="routine-card-box">
-                    <h2>Routine</h2>
-                    <ol>
-                    {% for procedure in routine.routine_steps %}
-                        <li>{{procedure.product}} - {{procedure.reason}}</li>
-                    {% endfor %}
-                    </ol>
-                </div>
-
-                <div class="routine-card-box">
-                    <h2>Frequency</h2>
-                    <p> {{routine.frequency}} </p>
-                </div>
-
-                <div class="routine-card-box routine-card-box--wide">
-                    <h2>Steps</h2>
-                    <ol>
-                    {% for tip in routine.steps %}
-                        <li>{{tip}}</li>
-                    {% endfor %}
-                    </ol>
-                </div>
-
-                <div class="routine-card-box routine-card-box--wide">
-                    <h2>Warnings</h2>
-                    <ol>
-                    {% for warning in routine.warnings %}
-                            <li>{{warning}}</li>
-                    {% endfor %}
-                    </ol>
-                </div>
-
+                <p style="white-space: pre-wrap"> {{ comparison }}</p>
+              </section>
             </div>
         {% endif %}
     </div>
 </section>
 <script>
-    document.getElementById('routine-form').addEventListener('submit', function(){
-        const product_name = document.getElementById('routine-text').value
-        document.getElementById('routine-loading-data').textContent = product_name
-        document.getElementById('routine-loading').hidden = false
+    document.getElementById('drug-compare-form').addEventListener('submit', function(){
+        const drug1 = document.getElementById('drug1-text').value
+        const drug2 = document.getElementById('drug2-text').value
+        document.getElementById('comparison-loading-data').textContent = drug1 + ' vs ' + drug2
+        document.getElementById('comparison-loading').hidden = false
     })
 </script>
 {% endblock content %}

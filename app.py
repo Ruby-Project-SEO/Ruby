@@ -12,7 +12,8 @@ from flask_behind_proxy import FlaskBehindProxy
 from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel, Field
-from ruby import search_recipes, get_recipe_details
+from ruby import search_recipes, get_recipe_details, generate_drug_comparison
+
 
 
 from ruby import (generate_food_remedies,
@@ -438,10 +439,10 @@ def drug_comparison():
 
 @app.post('/compare-drugs')
 def compare_drugs():
-  drug1 = requests.form.get('drug1', '').strip()
-  drug2 = requests.form.get('drug2', '').strip()
+  drug1 = request.form.get('drug1', '').strip()
+  drug2 = request.form.get('drug2', '').strip()
 
-  if not drug1 or drug2:
+  if not drug1 or not drug2:
     return redirect(url_for('drug_comparison'))
   
   comparison = generate_drug_comparison(drug1, drug2)

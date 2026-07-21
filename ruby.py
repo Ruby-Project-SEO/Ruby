@@ -316,3 +316,26 @@ def generate_price(items):
       price_list[item] = "N/A"
   return price_list
 
+
+def generate_drug_comparison(drug1, drug2):
+  prompt = f"""
+  Compare these two drugs for educational purposes: {drug1} and {drug2}.
+  Give pros and cons. Do not recommend a dosage and you are not replacing medical advice.
+  Format it like this:
+
+  {drug1.capitalize()}
+  Pros:
+  Cons:
+
+  {drug2.capitalize()}
+  Pros:
+  Cons:
+  """
+
+  resp = client.models.generate_content(
+      model="gemini-2.5-flash",
+      contents=prompt
+  )
+
+  return resp.text
+
