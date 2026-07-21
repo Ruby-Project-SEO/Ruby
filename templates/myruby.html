@@ -1,0 +1,107 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="recipe-hero hero-top">
+    <div class="recipe-hero-overlay"></div>
+
+    <div class="recipe-hero-content">
+
+        <span class="recipe-hero-label">
+            MyRuby
+        </span>
+
+        <h1>
+            MyRuby: Your <strong>personal</strong> inventory
+        </h1>
+
+        <p>
+            Add your specialized recipes and routines
+        </p>
+
+        {% if not saved_routines %}
+            <p id="empty-cart-message">Right now your cart is empty, explore other pages to add items</p>
+        {% else %}
+            <p id="empty-cart-message" hidden>Right now your cart is empty, explore other pages to add items</p>
+            {% for routine in saved_routines %}
+                <div class="routine-card">
+
+                    <h3 class="routine-title">{{ routine.product_type }} Routine</h3>
+
+                    <div class="routine-card-box">
+                        <h2>Overview</h2>
+                        <p>{{ routine.introduction }}</p>
+                    </div>
+
+                    <div class="routine-card-box">
+                        <h2>Product Type</h2>
+                        <p>{{ routine.product_type }}</p>
+                    </div>
+
+                    <div class="routine-card-box">
+                        <h2>Routine</h2>
+                        <ol>
+                        {% for step in routine.routine_steps %}
+                            <li>{{ step.product }} - {{ step.reason }}</li>
+                        {% endfor %}
+                        </ol>
+                    </div>
+
+                    <div class="routine-card-box">
+                        <h2>Frequency</h2>
+                        <p>{{ routine.frequency }}</p>
+                    </div>
+
+                    <div class="routine-card-box routine-card-box--wide">
+                        <h2>Steps</h2>
+                        <ol>
+                        {% for note in routine.notes %}
+                            {% if note.type == 'step' %}
+                                <li>{{ note.text }}</li>
+                            {% endif %}
+                        {% endfor %}
+                        </ol>
+                    </div>
+
+                    <div class="routine-card-box routine-card-box--wide">
+                        <h2>Warnings</h2>
+                        <ol>
+                        {% for note in routine.notes %}
+                            {% if note.type == 'warning' %}
+                                <li>{{ note.text }}</li>
+                            {% endif %}
+                        {% endfor %}
+                        </ol>
+                    </div>
+
+                    <button type="button" class="save-routine-btn routine-card-box--wide" data-routine-id="{{ routine.id }}">
+                        <i class="bi bi-trash"></i> Remove from MyRuby
+                    </button>
+
+                </div>
+            {% endfor %}
+        {% endif %}
+
+    </div>
+</section>
+<script>
+document.querySelectorAll('.save-routine-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+        const routineId = button.dataset.routineId;
+        fetch(`/myruby/${routineId}/delete`, {
+            method: 'POST'
+        })
+        .then(response => {
+            if (response.ok) {
+                button.closest('.routine-card').remove();
+                if (document.querySelectorAll('routine-card').length === 0){
+                    document.getElementById('empty-cart-message').hidden = false;
+                    }
+            } else {
+                console.error('Failed to delete routine');
+            }
+        })
+        .catch(error => console.error('Delete request failed:', error));
+    });
+});
+
+</script>
+{% endblock content %}

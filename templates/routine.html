@@ -17,73 +17,111 @@
         </p>
 
         <form id="routine-form" class="recipe-search" action="{{ url_for('routine') }}" method="post">
-            <input id="routine-text" type="text" name="product_name"  maxlength="1000" placeholder="Enter products to build routine..." aria-label="Enter products to build a routine" required>
+            <input id="routine-text" type="text" name="product_name" maxlength="1000" placeholder="Enter products to build routine..." aria-label="Enter products to build a routine" required>
             <button type="submit">
                 <i class="bi bi-search"></i>
             </button>
         </form>
 
-        <div id="routine-loading" hidden> Curating routine for <span id="routine-loading-data"> </span>....</div>
-
-
-
-        {% if routine %}
-            <div class="routine-card">
-
-                <h3 class="routine-title"> Specialized Routine with {{product_title}}</h3>
-
-                <div class="routine-card-box">
-                    <h2>Overview</h2>
-                    <p>{{routine.introduction}}</p>
-                </div>
-                
-                <div class="routine-card-box">
-                    <h2>Product Type</h2>
-                    <p>{{routine.product_type}}</p>
-                </div>
-
-                
-                <div class="routine-card-box">
-                    <h2>Routine</h2>
-                    <ol>
-                    {% for procedure in routine.routine_steps %}
-                        <li>{{procedure.product}} - {{procedure.reason}}</li>
-                    {% endfor %}
-                    </ol>
-                </div>
-
-                <div class="routine-card-box">
-                    <h2>Frequency</h2>
-                    <p> {{routine.frequency}} </p>
-                </div>
-
-                <div class="routine-card-box routine-card-box--wide">
-                    <h2>Steps</h2>
-                    <ol>
-                    {% for tip in routine.steps %}
-                        <li>{{tip}}</li>
-                    {% endfor %}
-                    </ol>
-                </div>
-
-                <div class="routine-card-box routine-card-box--wide">
-                    <h2>Warnings</h2>
-                    <ol>
-                    {% for warning in routine.warnings %}
-                            <li>{{warning}}</li>
-                    {% endfor %}
-                    </ol>
-                </div>
-
-            </div>
-        {% endif %}
+        <div id="routine-loading" hidden> Curating routine for <span id="routine-loading-data"></span>....</div>
     </div>
 </section>
+
+{% if routine %}
+<section class="routine-results">
+    <div class="routine-card">
+
+        <h3 class="routine-title"> Specialized Routine with {{product_title}}</h3>
+
+        <div class="routine-card-box">
+            <h2>Overview</h2>
+            <p>{{routine.introduction}}</p>
+        </div>
+
+        <div class="routine-card-box">
+            <h2>Product Type</h2>
+            <p>{{routine.product_type}}</p>
+        </div>
+
+        <div class="routine-card-box">
+            <h2>Routine</h2>
+            <ol>
+            {% for procedure in routine.routine_steps %}
+                <li>{{procedure.product}} - {{procedure.reason}}</li>
+            {% endfor %}
+            </ol>
+        </div>
+
+        <div class="routine-card-box">
+            <h2>Frequency</h2>
+            <p> {{routine.frequency}} </p>
+        </div>
+
+        <div class="routine-card-box routine-card-box--wide">
+            <h2>Steps</h2>
+            <ol>
+            {% for tip in routine.steps %}
+                <li>{{tip}}</li>
+            {% endfor %}
+            </ol>
+        </div>
+
+        <div class="routine-card-box routine-card-box--wide">
+            <h2>Warnings</h2>
+            <ol>
+            {% for warning in routine.warnings %}
+                    <li>{{warning}}</li>
+            {% endfor %}
+            </ol>
+        </div>
+
+        <button type="button" id="save-routine-btn" class="save-routine-btn routine-card-box--wide">
+            <i class="bi bi-bookmark-plus"></i>Save Routine
+        </button>
+
+    </div>
+</section>
+{% endif %}
+
+{% if routine %}
+    <script id="routine-data" type="application/json">{{ routine | tojson }}</script>
+{% endif %}
+
 <script>
+    const routineDataEl = document.getElementById('routine-data');
+    const routineData = routineDataEl ? JSON.parse(routineDataEl.textContent) : null;
+
     document.getElementById('routine-form').addEventListener('submit', function(){
         const product_name = document.getElementById('routine-text').value
         document.getElementById('routine-loading-data').textContent = product_name
         document.getElementById('routine-loading').hidden = false
     })
+
+    const saved_button = document.getElementById('save-routine-btn')
+
+    if (saved_button) {
+        saved_button.addEventListener('click', function(){
+            saved_button.disabled = true;
+            fetch('/myruby', {
+                method: "POST",
+                headers : {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(routineData)
+            })
+            .then(response => {
+                if (response.ok) {
+                    saved_button.innerHTML = '<i class="bi bi-bookmark-check"></i> Saved';
+                } else {
+                    saved_button.disabled = false;
+                    console.error('Failed to save routine');
+                }
+            })
+            .catch(error => {
+                saved_button.disabled = false;
+                console.error('Save request failed:', error);
+            });
+        })
+    }
 </script>
 {% endblock content %}
