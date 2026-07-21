@@ -228,6 +228,8 @@ def generate_routine_answer(client, model, product_name):
 
 @app.route('/')
 def home():
+    if not session.get('username'):
+        return redirect(url_for('login'))
     return render_dashboard()
 
 @app.route('/login')

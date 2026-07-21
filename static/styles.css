@@ -375,6 +375,39 @@ body {
     transform: translateY(-1px);
 }
 
+.recipe-results-jump {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 24px;
+    padding: 10px 16px;
+    border: 1px solid rgba(255, 255, 255, .45);
+    border-radius: 999px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.recipe-results-jump:hover {
+    background: rgba(255, 255, 255, .12);
+    color: #fff;
+}
+
+.recipe-results-jump i {
+    animation: recipe-arrow-bounce 1.2s ease-in-out infinite;
+}
+
+@keyframes recipe-arrow-bounce {
+    50% {
+        transform: translateY(4px);
+    }
+}
+
+#recipe-results {
+    scroll-margin-top: 76px;
+}
+
 /*Recipe Card Styling*/
 .recipe-results {
     background-color: #ffffff;
