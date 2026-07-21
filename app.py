@@ -127,16 +127,6 @@ def get_dashboard_context():
             'SELECT * FROM tasks WHERE user_id = ? ORDER BY completed, id DESC',
             (user_id,)
         ).fetchall()
-        activities = connection.execute(
-            '''
-            SELECT description, strftime('%m/%d %H:%M', created_at) AS display_time
-            FROM activities
-            WHERE user_id = ?
-            ORDER BY id DESC
-            LIMIT 4
-            ''',
-            (user_id,)
-        ).fetchall()
         connection.execute(
             'DELETE FROM ruby_responses WHERE user_id = ?',
             (user_id,)
@@ -146,7 +136,6 @@ def get_dashboard_context():
     context = {
         'username': session.get('username'),
         'tasks': tasks,
-        'activities': activities,
         'completed_count': completed_count
     }
     if ruby_response:

@@ -67,65 +67,57 @@
         </div>
         {% endif %}
 
-        <div class="dashboard-details">
-            <section class="today-section">
-                <div class="section-title">
-                    <h2>Today</h2>
-                    <span>{{ completed_count }} of {{ tasks|length }} complete</span>
+        {% set task_total = tasks|length %}
+        <section class="task-panel">
+            <div class="task-panel-header">
+                <div>
+                    <h2>Tasks</h2>
+                    <p>Keep track of what you want to finish.</p>
                 </div>
+                <span>{{ completed_count }} of {{ task_total }} done</span>
+            </div>
 
-                <form class="task-add-form" action="{{ url_for('add_task') }}" method="POST">
-                    <input type="text" name="title" maxlength="120" placeholder="Add a task" aria-label="New task" required>
-                    <button type="submit">Add</button>
-                </form>
+            <div class="task-progress" role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="{{ task_total }}" aria-valuenow="{{ completed_count }}">
+                <span style="width: {% if task_total %}{{ (completed_count / task_total * 100)|round }}{% else %}0{% endif %}%"></span>
+            </div>
 
-                <div class="task-list">
-                    {% for task in tasks %}
-                    <div class="task-row {% if task.completed %}completed{% endif %}">
-                        <form action="{{ url_for('toggle_task', task_id=task.id) }}" method="POST">
-                            <button class="task-toggle" type="submit" aria-label="Toggle {{ task.title }}">
-                                <i class="bi {% if task.completed %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
-                            </button>
-                        </form>
+            <form class="task-add-form" action="{{ url_for('add_task') }}" method="POST" autocomplete="off">
+                <input type="text" name="title" maxlength="120" placeholder="What do you need to do?" aria-label="New task" autocomplete="off" required>
+                <button type="submit"><i class="bi bi-plus-lg"></i><span>Add task</span></button>
+            </form>
+
+            <div class="task-list">
+                {% for task in tasks %}
+                <div class="task-row {% if task.completed %}completed{% endif %}">
+                    <form class="task-toggle-form" action="{{ url_for('toggle_task', task_id=task.id) }}" method="POST">
+                        <button class="task-toggle" type="submit" aria-label="{% if task.completed %}Mark {{ task.title }} incomplete{% else %}Mark {{ task.title }} complete{% endif %}">
+                            <i class="bi {% if task.completed %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                        </button>
+                    </form>
+                    <div class="task-content">
+                        <span class="task-title">{{ task.title }}</span>
                         <form class="task-edit-form" action="{{ url_for('edit_task', task_id=task.id) }}" method="POST">
-                            <input type="text" name="title" value="{{ task.title }}" maxlength="120" aria-label="Edit task">
-                            <button type="submit" aria-label="Save {{ task.title }}"><i class="bi bi-check2"></i></button>
+                            <input type="text" name="title" value="{{ task.title }}" maxlength="120" aria-label="Edit task" required>
+                            <button class="task-save" type="submit">Save</button>
+                            <button class="task-cancel" type="button">Cancel</button>
                         </form>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-edit-toggle" type="button" aria-label="Edit {{ task.title }}"><i class="bi bi-pencil"></i></button>
                         <form action="{{ url_for('delete_task', task_id=task.id) }}" method="POST">
                             <button class="task-delete" type="submit" aria-label="Delete {{ task.title }}"><i class="bi bi-trash3"></i></button>
                         </form>
                     </div>
-                    {% else %}
-                    <p class="empty-state">No tasks yet. Add your first one above.</p>
-                    {% endfor %}
                 </div>
-            </section>
-
-            <div class="dashboard-detail-columns tracked-details">
-                <section class="recent-section">
-                    <div class="section-title">
-                        <h2>Recent activity</h2>
-                    </div>
-                    <ul class="recent-list">
-                        {% for activity in activities %}
-                        <li><span>{{ activity.description }}</span><small>{{ activity.display_time }}</small></li>
-                        {% else %}
-                        <li class="empty-state">Your task activity will appear here.</li>
-                        {% endfor %}
-                    </ul>
-                </section>
-
-                <section class="saved-section task-summary">
-                    <div class="section-title">
-                        <h2>Task summary</h2>
-                    </div>
-                    <strong>{{ completed_count }}</strong>
-                    <span>completed</span>
-                    <strong>{{ tasks|length - completed_count }}</strong>
-                    <span>remaining</span>
-                </section>
+                {% else %}
+                <div class="task-empty-state">
+                    <i class="bi bi-check2-circle"></i>
+                    <p>No tasks yet.</p>
+                    <span>Add one above when something comes to mind.</span>
+                </div>
+                {% endfor %}
             </div>
-        </div>
+        </section>
 
         <div class="simple-actions">
             <a class="simple-action" href="{{ url_for('recipe') }}">
@@ -196,6 +188,23 @@
         const submitButton = rubyQuestionForm.querySelector('button');
         submitButton.disabled = true;
         submitButton.textContent = 'Asking…';
+    });
+
+    document.querySelectorAll('.task-row').forEach((taskRow) => {
+        const editButton = taskRow.querySelector('.task-edit-toggle');
+        const cancelButton = taskRow.querySelector('.task-cancel');
+        const editInput = taskRow.querySelector('.task-edit-form input');
+
+        editButton.addEventListener('click', () => {
+            taskRow.classList.add('editing');
+            editInput.focus();
+            editInput.select();
+        });
+
+        cancelButton.addEventListener('click', () => {
+            taskRow.classList.remove('editing');
+            editInput.value = taskRow.querySelector('.task-title').textContent.trim();
+        });
     });
 </script>
 {% endblock %}
