@@ -83,7 +83,35 @@ def init_database():
                 ranking TEXT NOT NULL DEFAULT '["food", "drugs", "cosmetics"]',
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+        
+
+            CREATE TABLE IF NOT EXISTS routines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                introduction TEXT NOT NULL,
+                product_type TEXT NOT NULL,
+                frequency TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS routine_steps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                routine_id INTEGER NOT NULL,
+                product TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                tip TEXT NOT NULL,
+                FOREIGN KEY (routine_id) REFERENCES routines(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS routine_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                routine_id INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                type TEXT NOT NULL,
+                FOREIGN KEY (routine_id) REFERENCES routines(id)
+            );
         ''')
+
         response_columns = {
             row['name'] for row in connection.execute('PRAGMA table_info(ruby_responses)')
         }
@@ -398,9 +426,98 @@ def routine():
         model = os.environ.get('GEMINI_MODEL', 'gemini-3.1-flash-lite')
         product = request.form.get("product_name")
         guidance = generate_routine_answer(client, model, product)
-        return render_template('routine.html', routine= guidance, product_title = product)
+        return render_template('routine.html', routine=guidance.model_dump(), product_title=product)
     else:
-        return render_template('routine.html', routine = None)
+        return render_template('routine.html', routine=None)
+
+
+@app.route('/myruby', methods=["GET", "POST"])
+def my_ruby():
+    if request.method == "POST":
+        new_body = request.json
+        user_id = get_user_id()
+        with get_database() as connection:
+            cursor = connection.execute(
+                'INSERT INTO routines (user_id, introduction, product_type, frequency) VALUES (?, ?, ?, ?)',
+                (user_id, new_body['introduction'], new_body['product_type'], new_body['frequency'])
+            )
+            routine_id = cursor.lastrowid
+
+            for step in new_body['routine_steps']:
+                connection.execute(
+                    'INSERT INTO routine_steps (routine_id, product, reason, tip) VALUES (?, ?, ?, ?)',
+                    (routine_id, step['product'], step['reason'], step['tip'])
+                )
+
+            for note in new_body['steps']:
+                connection.execute(
+                    'INSERT INTO routine_notes (routine_id, text, type) VALUES (?, ?, ?)',
+                    (routine_id, note, 'step')
+                )
+
+            for warning in new_body['warnings']:
+                connection.execute(
+                    'INSERT INTO routine_notes (routine_id, text, type) VALUES (?, ?, ?)',
+                    (routine_id, warning, 'warning')
+                )
+        return {'status': 'saved'}, 200
+
+    user_id = get_user_id()
+    with get_database() as connection:
+        routines = connection.execute(
+            'SELECT * FROM routines WHERE user_id = ? ORDER BY id DESC',
+            (user_id,)
+        ).fetchall()
+
+        routine_ids = [r['id'] for r in routines]
+        steps_by_routine = {}
+        notes_by_routine = {}
+
+        if routine_ids:
+            placeholders = ','.join('?' for _ in routine_ids)
+
+            steps = connection.execute(
+                f'SELECT * FROM routine_steps WHERE routine_id IN ({placeholders}) ORDER BY id',
+                routine_ids
+            ).fetchall()
+            for step in steps:
+                steps_by_routine.setdefault(step['routine_id'], []).append(step)
+
+            notes = connection.execute(
+                f'SELECT * FROM routine_notes WHERE routine_id IN ({placeholders}) ORDER BY id',
+                routine_ids
+            ).fetchall()
+            for note in notes:
+                notes_by_routine.setdefault(note['routine_id'], []).append(note)
+
+    saved_routines = []
+    for routine in routines:
+        saved_routines.append({
+            'id': routine['id'],
+            'introduction': routine['introduction'],
+            'product_type': routine['product_type'],
+            'frequency': routine['frequency'],
+            'routine_steps': steps_by_routine.get(routine['id'], []),
+            'notes': notes_by_routine.get(routine['id'], [])
+        })
+
+    return render_template('myruby.html', saved_routines=saved_routines)
+
+@app.post('/myruby/<int:routine_id>/delete')
+def delete_routine(routine_id):
+    user_id = get_user_id()
+    with get_database() as connection:
+        routine = connection.execute(
+            'SELECT id FROM routines WHERE id = ? AND user_id = ?',
+            (routine_id, user_id)
+        ).fetchone()
+        if routine:
+            connection.execute('DELETE FROM routine_notes WHERE routine_id = ?', (routine_id,))
+            connection.execute('DELETE FROM routine_steps WHERE routine_id = ?', (routine_id,))
+            connection.execute('DELETE FROM routines WHERE id = ? AND user_id = ?', (routine_id, user_id))
+            return {'status': 'deleted'}, 200
+    return {'status': 'not found'}, 404
+            
 
 
 if __name__ == '__main__':
