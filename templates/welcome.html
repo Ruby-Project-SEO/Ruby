@@ -10,22 +10,26 @@
             </div>
         </div>
 
-        <form id="ruby-question-form" class="wellness-search" action="{{ url_for('ask_ruby') }}" method="POST">
+        <form id="ruby-question-form" class="wellness-search" action="{{ url_for('ask_ruby') }}" method="POST" autocomplete="off">
             <i class="bi bi-search"></i>
-            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="Ask a wellness question..." aria-label="Ask a wellness question" required>
+            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="Ask a wellness question..." aria-label="Ask a wellness question" autocomplete="off" required>
             <button type="submit">Ask Ruby</button>
         </form>
 
         {% if ruby_answer or ruby_error %}
-        <div class="ruby-result-layout {% if ruby_error %}single-result{% endif %}">
+        <div class="ruby-result-layout {% if ruby_error or not ruby_is_wellness_related %}single-result{% endif %}">
             <section class="ruby-response {% if ruby_error %}ruby-response-error{% endif %}" aria-live="polite">
                 <div class="ruby-response-heading">
                     <span>Ruby</span>
                     <small>AI-generated wellness information</small>
                 </div>
-                <p>{{ ruby_answer or ruby_error }}</p>
+                {% if ruby_answer %}
+                <p><span id="typed-ruby-response">{{ ruby_answer }}</span><span id="ruby-response-caret" class="response-typing-caret" aria-hidden="true"></span></p>
+                {% else %}
+                <p>{{ ruby_error }}</p>
+                {% endif %}
             </section>
-            {% if ruby_answer %}
+            {% if ruby_answer and ruby_is_wellness_related %}
             <aside class="remedy-sidebar">
                 <h2>Come here first</h2>
                 <div class="remedy-links">
@@ -46,69 +50,113 @@
                     {% endfor %}
                 </div>
             </aside>
+            {% if ruby_options %}
+            <section class="ruby-options">
+                <div class="ruby-options-heading">
+                    <div>
+                        <span><i class="bi bi-stars"></i> Suggested for you</span>
+                        <h2>Top {{ ruby_category|capitalize }} Options</h2>
+                    </div>
+                    <p>{{ ruby_options|length }} results</p>
+                </div>
+                {% if ruby_category == 'food' %}
+                <form id="food-selection-form" action="{{ url_for('recipe') }}" method="POST">
+                    <input id="selected-foods" type="hidden" name="ingredients">
+                {% endif %}
+                <div class="option-list">
+                    {% for item in ruby_options %}
+                    {% set option_name = item.get('Food') or item.get('Drug') or item.get('Cosmetic') %}
+                    {% if ruby_category == 'food' %}
+                    <label class="remedy-card selectable-remedy">
+                        <input class="food-option-checkbox" type="checkbox" value="{{ option_name }}">
+                    {% else %}
+                    <article class="remedy-card">
+                    {% endif %}
+                        <div class="option-image">
+                            {% if item.get('Image') %}
+                            <img src="{{ item.Image }}" alt="" loading="lazy">
+                            {% else %}
+                            <i class="bi {% if ruby_category == 'food' %}bi-egg-fried{% elif ruby_category == 'drugs' %}bi-capsule{% else %}bi-droplet{% endif %}"></i>
+                            {% endif %}
+                            <span class="option-rank">{{ loop.index }}</span>
+                        </div>
+                        <div class="option-details">
+                            <h3>{{ option_name }}</h3>
+                            <p>{{ ruby_category|capitalize }} option</p>
+                        </div>
+                        <span class="option-price">{{ item.Price|format_price }}</span>
+                        {% if ruby_category == 'food' %}
+                        <span class="option-select"><i class="bi bi-plus-lg"></i></span>
+                    </label>
+                    {% else %}
+                    </article>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% if ruby_category == 'food' %}
+                    <div class="food-selection-actions">
+                        <span id="food-selection-count">Select foods to use as ingredients</span>
+                        <button id="find-recipes-button" type="submit" disabled>Find recipes</button>
+                    </div>
+                </form>
+                {% endif %}
+            </section>
+            {% endif %}
             {% endif %}
         </div>
         {% endif %}
 
-        <div class="dashboard-details">
-            <section class="today-section">
-                <div class="section-title">
-                    <h2>Today</h2>
-                    <span>{{ completed_count }} of {{ tasks|length }} complete</span>
+        {% set task_total = tasks|length %}
+        <section class="task-panel">
+            <div class="task-panel-header">
+                <div>
+                    <h2>Tasks</h2>
+                    <p>Keep track of what you want to finish.</p>
                 </div>
+                <span>{{ completed_count }} of {{ task_total }} done</span>
+            </div>
 
-                <form class="task-add-form" action="{{ url_for('add_task') }}" method="POST">
-                    <input type="text" name="title" maxlength="120" placeholder="Add a task" aria-label="New task" required>
-                    <button type="submit">Add</button>
-                </form>
+            <div class="task-progress" role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="{{ task_total }}" aria-valuenow="{{ completed_count }}">
+                <span style="width: {% if task_total %}{{ (completed_count / task_total * 100)|round }}{% else %}0{% endif %}%"></span>
+            </div>
 
-                <div class="task-list">
-                    {% for task in tasks %}
-                    <div class="task-row {% if task.completed %}completed{% endif %}">
-                        <form action="{{ url_for('toggle_task', task_id=task.id) }}" method="POST">
-                            <button class="task-toggle" type="submit" aria-label="Toggle {{ task.title }}">
-                                <i class="bi {% if task.completed %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
-                            </button>
-                        </form>
+            <form class="task-add-form" action="{{ url_for('add_task') }}" method="POST" autocomplete="off">
+                <input type="text" name="title" maxlength="120" placeholder="What do you need to do?" aria-label="New task" autocomplete="off" required>
+                <button type="submit"><i class="bi bi-plus-lg"></i><span>Add task</span></button>
+            </form>
+
+            <div class="task-list">
+                {% for task in tasks %}
+                <div class="task-row {% if task.completed %}completed{% endif %}">
+                    <form class="task-toggle-form" action="{{ url_for('toggle_task', task_id=task.id) }}" method="POST">
+                        <button class="task-toggle" type="submit" aria-label="{% if task.completed %}Mark {{ task.title }} incomplete{% else %}Mark {{ task.title }} complete{% endif %}">
+                            <i class="bi {% if task.completed %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                        </button>
+                    </form>
+                    <div class="task-content">
+                        <span class="task-title">{{ task.title }}</span>
                         <form class="task-edit-form" action="{{ url_for('edit_task', task_id=task.id) }}" method="POST">
-                            <input type="text" name="title" value="{{ task.title }}" maxlength="120" aria-label="Edit task">
-                            <button type="submit" aria-label="Save {{ task.title }}"><i class="bi bi-check2"></i></button>
+                            <input type="text" name="title" value="{{ task.title }}" maxlength="120" aria-label="Edit task" required>
+                            <button class="task-save" type="submit">Save</button>
+                            <button class="task-cancel" type="button">Cancel</button>
                         </form>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-edit-toggle" type="button" aria-label="Edit {{ task.title }}"><i class="bi bi-pencil"></i></button>
                         <form action="{{ url_for('delete_task', task_id=task.id) }}" method="POST">
                             <button class="task-delete" type="submit" aria-label="Delete {{ task.title }}"><i class="bi bi-trash3"></i></button>
                         </form>
                     </div>
-                    {% else %}
-                    <p class="empty-state">No tasks yet. Add your first one above.</p>
-                    {% endfor %}
                 </div>
-            </section>
-
-            <div class="dashboard-detail-columns tracked-details">
-                <section class="recent-section">
-                    <div class="section-title">
-                        <h2>Recent activity</h2>
-                    </div>
-                    <ul class="recent-list">
-                        {% for activity in activities %}
-                        <li><span>{{ activity.description }}</span><small>{{ activity.display_time }}</small></li>
-                        {% else %}
-                        <li class="empty-state">Your task activity will appear here.</li>
-                        {% endfor %}
-                    </ul>
-                </section>
-
-                <section class="saved-section task-summary">
-                    <div class="section-title">
-                        <h2>Task summary</h2>
-                    </div>
-                    <strong>{{ completed_count }}</strong>
-                    <span>completed</span>
-                    <strong>{{ tasks|length - completed_count }}</strong>
-                    <span>remaining</span>
-                </section>
+                {% else %}
+                <div class="task-empty-state">
+                    <i class="bi bi-check2-circle"></i>
+                    <p>No tasks yet.</p>
+                    <span>Add one above when something comes to mind.</span>
+                </div>
+                {% endfor %}
             </div>
-        </div>
+        </section>
 
         <div class="simple-actions">
             <a class="simple-action" href="{{ url_for('recipe') }}">
@@ -148,11 +196,74 @@
         window.setTimeout(typeGreeting, 250);
     }
 
+    const rubyResponse = document.getElementById('typed-ruby-response');
+    const rubyResponseCaret = document.getElementById('ruby-response-caret');
+
+    if (rubyResponse && rubyResponseCaret) {
+        if (reducedMotion) {
+            rubyResponseCaret.remove();
+        } else {
+            const responseText = rubyResponse.textContent;
+            rubyResponse.textContent = '';
+            let responseIndex = 0;
+            const typeResponse = () => {
+                rubyResponse.textContent += responseText.slice(responseIndex, responseIndex + 2);
+                responseIndex += 2;
+                if (responseIndex < responseText.length) {
+                    window.setTimeout(typeResponse, 12);
+                } else {
+                    rubyResponseCaret.remove();
+                }
+            };
+            window.setTimeout(typeResponse, 200);
+        }
+    }
+
     const rubyQuestionForm = document.getElementById('ruby-question-form');
+    {% if not ruby_answer and not ruby_error %}
+    rubyQuestionForm.reset();
+    {% endif %}
     rubyQuestionForm.addEventListener('submit', () => {
         const submitButton = rubyQuestionForm.querySelector('button');
         submitButton.disabled = true;
         submitButton.textContent = 'Asking…';
+    });
+
+    const foodSelectionForm = document.getElementById('food-selection-form');
+
+    if (foodSelectionForm) {
+        const foodCheckboxes = [...foodSelectionForm.querySelectorAll('.food-option-checkbox')];
+        const selectedFoodsInput = document.getElementById('selected-foods');
+        const selectionCount = document.getElementById('food-selection-count');
+        const findRecipesButton = document.getElementById('find-recipes-button');
+
+        const updateFoodSelection = () => {
+            const selectedFoods = foodCheckboxes.filter((checkbox) => checkbox.checked);
+            selectedFoodsInput.value = selectedFoods.map((checkbox) => checkbox.value).join(', ');
+            findRecipesButton.disabled = selectedFoods.length === 0;
+            selectionCount.textContent = selectedFoods.length
+                ? `${selectedFoods.length} selected`
+                : 'Select foods to use as ingredients';
+        };
+
+        foodCheckboxes.forEach((checkbox) => checkbox.addEventListener('change', updateFoodSelection));
+    }
+
+    document.querySelectorAll('.task-row').forEach((taskRow) => {
+        const editButton = taskRow.querySelector('.task-edit-toggle');
+        const cancelButton = taskRow.querySelector('.task-cancel');
+        const editInput = taskRow.querySelector('.task-edit-form input');
+
+        editButton.addEventListener('click', () => {
+            taskRow.classList.add('editing');
+            editInput.focus();
+            editInput.select();
+        });
+
+        cancelButton.addEventListener('click', () => {
+            taskRow.classList.remove('editing');
+            editInput.value = taskRow.querySelector('.task-title').textContent.trim();
+        });
     });
 </script>
 {% endblock %}

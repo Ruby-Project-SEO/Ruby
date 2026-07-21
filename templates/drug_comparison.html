@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="recipe-hero">
+    <div class="recipe-hero-overlay"></div>
+
+    <div class="recipe-hero-content">
+        <span class="recipe-hero-label">
+            Better than a pharmacist.
+        </span>
+
+        <h1>
+            Drug Comparisons
+        </h1>
+
+        <p>
+            Let us help you decide what's best for you.
+        </p>
+
+        <form id="drug-compare-form" class="recipe-search" action="{{ url_for('compare_drugs') }}" method="post">
+            <input id="drug1-text" type="text" name="drug1"  maxlength="1000" placeholder="Enter your first drug..." aria-label="Enter drugs to compare" required>
+            <input id="drug2-text" type="text" name="drug2"  maxlength="1000" placeholder="Enter your second drug..." aria-label="Enter drugs to compare" required>
+            <button type="submit">
+                <i class="bi bi-search"></i>
+            </button>
+        </form>
+
+        <div id="comparison-loading" hidden> Curating routine for <span id="comparison-loading-data"> </span>....</div>
+
+
+
+        {% if comparison %}
+            <div class="compare-layout"> 
+              <section class="compare-response">
+                <div class="response-heading">
+                  <small></small>
+                </div>
+                <p style="white-space: pre-wrap"> {{ comparison }}</p>
+              </section>
+            </div>
+        {% endif %}
+    </div>
+</section>
+<script>
+    document.getElementById('drug-compare-form').addEventListener('submit', function(){
+        const drug1 = document.getElementById('drug1-text').value
+        const drug2 = document.getElementById('drug2-text').value
+        document.getElementById('comparison-loading-data').textContent = drug1 + ' vs ' + drug2
+        document.getElementById('comparison-loading').hidden = false
+    })
+</script>
+{% endblock content %}
