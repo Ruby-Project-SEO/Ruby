@@ -28,7 +28,7 @@
           <div class="navbar-nav mx-auto">
             <a class="nav-link {% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Dashboard</a>
             <a class="nav-link {% if request.endpoint == 'recipe' %}active{% endif %}" href="{{ url_for('recipe') }}">Recipes</a>
-            <a class="nav-link" href="#">Drug Comparison</a>
+            <a class="nav-link {% if request.endpoint == 'drug_comparison' %}active{% endif %}" href="{{ url_for('drug_comparison')}}">Drug Comparison</a>
             <a class="nav-link" href="/routine">Routine</a>
             <a class="nav-link" href="#">Cart</a>
           </div>

@@ -14,6 +14,7 @@ from google.genai import errors, types
 from pydantic import BaseModel, Field
 from ruby import search_recipes, get_recipe_details
 
+
 from ruby import (generate_food_remedies,
                   generate_drug_remedies,
                   generate_cosmetic_remedies,
@@ -428,6 +429,27 @@ def routine():
         return render_template('routine.html', routine= guidance, product_title = product)
     else:
         return render_template('routine.html', routine = None)
+
+
+@app.route('/drug-comparison')
+def drug_comparison():
+    return render_template('drug_comparison.html')
+
+
+@app.post('/compare-drugs')
+def compare_drugs():
+  drug1 = requests.form.get('drug1', '').strip()
+  drug2 = requests.form.get('drug2', '').strip()
+
+  if not drug1 or drug2:
+    return redirect(url_for('drug_comparison'))
+  
+  comparison = generate_drug_comparison(drug1, drug2)
+
+  return render_template('drug_comparison.html',
+                          comparison=comparison,
+                          drug1=drug1,
+                          drug2=drug2)
 
 
 if __name__ == '__main__':
