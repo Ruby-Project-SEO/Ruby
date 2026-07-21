@@ -332,7 +332,7 @@ def recipe():
 def recipe_details(recipe_id):
     recipe = get_recipe_details(recipe_id)
     print(recipe)
-    return render_template('recipe_details.html', recipe=None, error="The fulle recipe could not be loaded right now.")
+    return render_template('recipe_details.html', recipe=None, error="The full recipe could not be loaded right now.")
     # try:
     #     recipe = get_recipe_details(recipe_id)
 
