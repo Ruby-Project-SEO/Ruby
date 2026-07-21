@@ -358,8 +358,12 @@ def recipe():
                     error = "No recipes were found for those ingredients."
 
             except requests.exceptions.HTTPError as http_error:
-                app.logger.exception("Spoonacular HTTP error")
-                error = "The recipe api returned an error."
+                status_code = http_error.response.status_code if http_error.response is not None else "unknown"
+                app.logger.error("Spoonacular returned HTTP status %s", status_code)
+                if status_code == 401:
+                    error = "The Spoonacular API key was rejected."
+                else:
+                    error = "The recipe api returned an error."
 
             except requests.exceptions.RequestException:
                 app.logger.exception("Spoonacular connection error")

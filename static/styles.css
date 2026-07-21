@@ -274,7 +274,7 @@ body {
     justify-content: center;
     align-items: center;
     padding: 0px 24px;
-    background: linear-gradient(rgba(5, 61, 39, 0.72), rgba(5, 61, 39, 0.82)), url("../static/images/recipe-hero.jpg");
+    background: linear-gradient(145deg, #315f4d, #173f2e);
     background-size: cover;
     background-position: center;
 }

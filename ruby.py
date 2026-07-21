@@ -7,7 +7,7 @@ from google import genai
 
 
 my_api_key = os.getenv('GENAI_KEY')
-spoonacular_key = os.getenv('SPOONACULAR_KEY')
+spoonacular_key = (os.getenv('SPOONACULAR_KEY') or '').strip()
 
 
 client = genai.Client(api_key=my_api_key)
@@ -18,7 +18,7 @@ cosmeticurl = "https://world.openbeautyfacts.org/cgi/search.pl"
 engine = db.create_engine('sqlite:///item_status.db')
 
 def search_recipes(ingredients):
-  spoonacular_key = os.getenv("SPOONACULAR_KEY")
+  spoonacular_key = (os.getenv("SPOONACULAR_KEY") or '').strip()
 
   if not spoonacular_key:
     raise RuntimeError("SPOONACULAR_KEY is not configured")
@@ -42,7 +42,7 @@ def search_recipes(ingredients):
   return response.json()
 
 def get_recipe_details(recipe_id):
-  poonacular_key = os.getenv("SPOONACULAR_KEY")
+  spoonacular_key = (os.getenv("SPOONACULAR_KEY") or '').strip()
 
   if not spoonacular_key:
     raise RuntimeError("SPOONACULAR_KEY is not configured")
@@ -300,4 +300,3 @@ def generate_price(item):
     return float(resp.text.strip())
   except ValueError:
     return "N/A"
-
