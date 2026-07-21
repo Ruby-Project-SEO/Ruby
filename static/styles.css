@@ -205,6 +205,11 @@ body {
     color: #ffffff !important;
 }
 
+.logout-button {
+    border: 0;
+    background: transparent;
+}
+
 .signup-button {
     display: inline-flex;
     justify-content: center;

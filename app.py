@@ -236,6 +236,11 @@ def home():
 def login():
     return render_template('login.html')
 
+@app.post('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
 @app.route('/entry', methods= ["GET", "POST"])
 def entry():
     if request.method == "POST":
