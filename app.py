@@ -1,4 +1,5 @@
 import os
+import git
 import secrets
 import sqlite3
 import json
@@ -163,6 +164,16 @@ def generate_ruby_answer(client, model, question):
         )
     )
     return RubyGuidance.model_validate_json(response.text)
+
+@app.route("/update_server", methods=['POST'])
+def webhook():
+    if request.method == 'POST':
+        repo = git.Repo('/home/wellness/Ruby')
+        origin = repo.remotes.origin
+        origin.pull()
+        return 'Updated PythonAnywhere successfully', 200
+    else:
+        return 'Wrong event type', 400
 
 @app.route('/')
 def home():
