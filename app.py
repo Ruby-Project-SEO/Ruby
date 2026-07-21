@@ -12,6 +12,14 @@ from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel, Field
 
+from ruby import (generate_food_remedies,
+                  generate_drug_remedies,
+                  generate_cosmetic_remedies,
+                  select_item,
+                  show_db,
+                  delete_saved,
+                  get_link)
+
 app = Flask(__name__)
 proxied = FlaskBehindProxy(app)
 DATABASE = Path(app.instance_path) / 'ruby.db'
@@ -125,12 +133,16 @@ def get_dashboard_context():
         context['ruby_question'] = ruby_response['question']
         context['ruby_answer'] = ruby_response['answer']
         context['ruby_ranking'] = json.loads(ruby_response['ranking'])
+        context['ruby_options'] = session.get('ruby_options', [])
+        context['ruby_category'] = session.get('ruby_category')
     ruby_error = session.pop('ruby_error', None)
     error_question = session.pop('ruby_error_question', None)
     if ruby_error:
         context['ruby_error'] = ruby_error
         context['ruby_question'] = error_question
         context.pop('ruby_answer', None)
+
+        
     return context
 
 def render_dashboard(**extra_context):
@@ -203,6 +215,19 @@ def ask_ruby():
         ranking = list(dict.fromkeys(guidance.ranked_categories))
         ranking.extend(category for category in ('food', 'drugs', 'cosmetics') if category not in ranking)
         answer = guidance.answer or 'Ruby could not generate a response. Please try again.'
+
+        top_category = ranking[0]
+        if top_category == 'food':
+          options = generate_food_remedies(question)
+        elif top_category == 'drugs':
+          options = generate_drug_remedies(question)
+        else:
+          options = generate_cosmetic_remedies(question)
+        
+        session['ruby_options'] = options
+        session['ruby_category'] = top_category
+
+
         user_id = get_user_id()
         with get_database() as connection:
             connection.execute(
@@ -232,6 +257,8 @@ def ask_ruby():
         session['ruby_error'] = 'Ruby could not answer right now. Please try again shortly.'
         session['ruby_error_question'] = question
         return redirect(url_for('home'))
+
+
 
 @app.post('/tasks')
 def add_task():

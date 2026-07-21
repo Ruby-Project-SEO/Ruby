@@ -58,14 +58,13 @@ def get_food_price(food_id):
 
   
 
-def search_drug(drug):
+def search_drug(drug, price):
     response = requests.get(drugurl,
                             params={"search": f"openfda.brand_name:{drug}",
                                     "limit": 1})
 
     drug_status = response.json()
 
-    price = generate_price(drug)
 
     if "results" not in drug_status:
         return None
@@ -85,7 +84,7 @@ def search_drug(drug):
 
   
 
-def search_cosmetics(cosmetic):
+def search_cosmetics(cosmetic, price):
   response = requests.get(cosmeticurl,
                           params={"search_terms": cosmetic,
                                   "json": 1,
@@ -93,7 +92,6 @@ def search_cosmetics(cosmetic):
   
   cosmetic_status = response.json()
 
-  price = generate_price(cosmetic)
 
   if "products" not in cosmetic_status:
     return None
@@ -171,7 +169,8 @@ def get_link(item):
 def generate_food_remedies(issue):
   #prompt for gemini, modify it here
   prompt = f"""
-  Given an issue, generate the 10 best foods in a comma separated list to help the person with that issue.
+  Given an issue, generate a list of 10 foods in a comma separated list to help the person with that issue.
+  These foods must be available from the spoonacular API.
   Issue: {issue}
   """
 
@@ -195,7 +194,7 @@ def generate_food_remedies(issue):
 def generate_drug_remedies(issue):
   #prompt for gemini, modify it here
   prompt = f"""
-  Given an issue, generate the 10 best drugs in a comma separated list to help the person with that issue.
+  Given an issue, generate a list of the 10 best drugs in a comma separated list to help the person with that issue.
   Issue: {issue}
   """
 
@@ -208,18 +207,22 @@ def generate_drug_remedies(issue):
 
   all_results = []
 
+  prices = generate_price(drugs)
+
   for drug in drugs:
-    result = search_drug(drug)
+    price = prices.get(drug, "N/A")
+    result = search_drug(drug, price)
     if result:
       all_results.extend(result)
   
   return all_results
 
-def generate_cosmetic_remedy(issue):
+def generate_cosmetic_remedies(issue):
   #prompt for gemini, modify it here
   prompt = f"""
   Given an issue, generate the 10 best cosmetics in a comma separated list to help the person with that issue.
   Don't give any explanation or anything else besides the comma separated list.
+  These cosmetics must be available from the open beauty facts API.
   Issue: {issue}
   """
 
@@ -232,27 +235,39 @@ def generate_cosmetic_remedy(issue):
 
   all_results = []
 
+  prices = generate_price(cosmetics)
+
   for cosmetic in cosmetics:
-    result = search_cosmetics(cosmetic)
+    price = prices.get(cosmetic, "N/A")
+    result = search_cosmetics(cosmetic, price)
     if result:
       all_results.extend(result)
   
   return all_results
 
 
-def generate_price(item):
+def generate_price(items):
   prompt = f"""
   Given an item, generate the most common price this item would be listed at in USD.
-  Don't give any explanation or any other words other than just the price excluding the "$" symbol.
-  Item: {item}
+  Answer with only a comma separated list of numbers, in the exact same order as the 
+  items given with no dollar signs, no other words, and no item names
+  Item: {", ".join(items)}
   """
 
   resp = client.models.generate_content(
       model="gemini-2.5-flash",
       contents=prompt
   )
-  try:
-    return float(resp.text.strip())
-  except ValueError:
-    return "N/A"
+
+  prices = resp.text.split(",")
+  prices = [price.strip() for price in prices]
+
+  price_list = {}
+
+  for item, price in zip(items, prices): 
+    try:
+      price_list[item] = float(price)
+    except ValueError:
+      price_list[item] = "N/A"
+  return price_list
 
