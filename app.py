@@ -35,10 +35,10 @@ class RoutineStep(BaseModel):
 class RubyRoutine(BaseModel):
     introduction: str = Field(description='1-2 sentence general overview of how this product fits into a routine.')
     product_type: str = Field(description='The likely product category, e.g. Moisturizer, Cleanser, Shampoo, Serum, Sunscreen.')
-    routine_steps: list[RoutineStep] = Field(description='Ordered routine steps. Reference product categories, not specific brand names other than the one the user provided.')
+    routine_steps: list[RoutineStep] = Field(description='Ordered routine steps. Reference product categories, use specific brand names if possible for more descriptive tailored routine.')
     frequency: str = Field(description='When and how often to use it, e.g. "morning" or "as needed, 2-3x per week".')
-    steps: list[str] = Field(description='Short practical tips, such as patch testing or application technique.')
-    warnings: list[str] = Field(description='Cautions, e.g. stop use if irritation occurs, consult a professional for persistent symptoms.')
+    steps: list[str] = Field(description='Short practical application tips or prep steps relevant to the product category.')
+    warnings: list[str] = Field(description='General product cautions, e.g., stop use if irritation or discomfort occurs, consult a professional for persistent symptoms')
 
 def get_secret_key():
     environment_key = os.environ.get('SECRET_KEY')
