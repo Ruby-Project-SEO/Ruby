@@ -417,18 +417,27 @@ def recipe():
 
 @app.route('/recipe/<int:recipe_id>')
 def recipe_details(recipe_id):
-    recipe = get_recipe_details(recipe_id)
-    print(recipe)
-    return render_template('recipe_details.html', recipe=None, error="The fulle recipe could not be loaded right now.")
-    # try:
-    #     recipe = get_recipe_details(recipe_id)
-
-    #     return render_template('recipe_details.html', recipe=recipe, error=None)
-
-    # except Exception:
-    #     app.logger.exception("Recipe details failed")
-
-    #     return render_template('recipe_details.html', recipe=None, error="The fulle recipe could not be loaded right now.")
+    try:
+        recipe = get_recipe_details(recipe_id)
+        return render_template('recipe_details.html', recipe=recipe, error=None)
+    except requests.exceptions.HTTPError as http_error:
+        status_code = http_error.response.status_code if http_error.response is not None else None
+        app.logger.error('Spoonacular recipe details returned HTTP status %s', status_code)
+        if status_code == 401:
+            error = 'The Spoonacular API key was rejected.'
+        elif status_code == 402:
+            error = 'The daily Spoonacular API limit has been reached.'
+        elif status_code == 404:
+            error = 'That recipe could not be found.'
+        else:
+            error = 'The recipe API returned an error.'
+        return render_template('recipe_details.html', recipe=None, error=error)
+    except requests.exceptions.RequestException:
+        app.logger.exception('Spoonacular recipe details connection error')
+        return render_template('recipe_details.html', recipe=None, error='The recipe API could not be reached.')
+    except Exception:
+        app.logger.exception('Recipe details failed')
+        return render_template('recipe_details.html', recipe=None, error='The full recipe could not be loaded right now.')
 
 @app.route('/routine', methods= ["GET", "POST"])
 def routine():

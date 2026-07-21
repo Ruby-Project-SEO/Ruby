@@ -47,7 +47,7 @@ def get_recipe_details(recipe_id):
   if not spoonacular_key:
     raise RuntimeError("SPOONACULAR_KEY is not configured")
 
-  url = "https://api.spoonacular.com/recipes/findByIngredients"
+  url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
 
   response = requests.get(
     url,
