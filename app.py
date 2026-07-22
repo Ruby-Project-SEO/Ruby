@@ -198,7 +198,7 @@ def render_dashboard(**extra_context):
 
 def generate_ruby_answer(client, model, question):
     response = client.models.generate_content(
-        model=model,
+        model= model,
         contents=question,
         config=types.GenerateContentConfig(
             system_instruction=(
@@ -582,6 +582,9 @@ def delete_routine(routine_id):
 
 @app.route('/drug-comparison')
 def drug_comparison():
+    data = session.pop('drug_comparison', None)
+    if data:
+        return render_template('drug_comparison.html', **data)
     return render_template('drug_comparison.html')
 
 
