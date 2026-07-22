@@ -40,6 +40,7 @@ Finding trustworthy guidance for everyday health concerns can be overwhelming, w
 ```bash
    git clone https://github.com/10sChris/Ruby.git
    cd Ruby
+```
 
 2. Create and activate a virtual environment
 ```bash
