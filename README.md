@@ -46,19 +46,21 @@ Finding trustworthy guidance for everyday health concerns can be overwhelming, w
 ```bash
    python -m venv venv
    source venv/bin/activate
-```bash
-   # On Windows:
+  # On Windows:
    venv\Scripts\activate
+```
 
 
 3. Install dependencies
 ```bash
    pip install -r requirements.txt
+```
 
 
 4. Run the app
 ```bash
    python app.py
+```
 
 5. Open your browser to the given port address
 
