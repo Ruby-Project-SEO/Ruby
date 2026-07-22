@@ -135,6 +135,17 @@ def init_database():
                 type TEXT NOT NULL,
                 FOREIGN KEY (routine_id) REFERENCES routines(id)
             );
+
+            CREATE TABLE IF NOT EXISTS saved_recipes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                spoonacular_id INTEGER NOT NULL,
+                title TEXT NOT NULL, 
+                image TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, spoonacular_id)
+            );
+
         ''')
 
         response_columns = {
@@ -529,6 +540,16 @@ def my_ruby():
             (user_id,)
         ).fetchall()
 
+        saved_recipes = connection.execute(
+            '''
+            SELECT *
+            FROM saved_recipes
+            WHERE user_id = ?
+            ORDER BY id DESC
+            ''',
+            (user_id,)
+        ).fetchall()
+
         routine_ids = [r['id'] for r in routines]
         steps_by_routine = {}
         notes_by_routine = {}
@@ -561,7 +582,9 @@ def my_ruby():
             'notes': notes_by_routine.get(routine['id'], [])
         })
 
-    return render_template('myruby.html', saved_routines=saved_routines)
+
+
+    return render_template('myruby.html', saved_routines=saved_routines, saved_recipes=saved_recipes)
 
 @app.post('/myruby/<int:routine_id>/delete')
 def delete_routine(routine_id):
@@ -599,6 +622,51 @@ def compare_drugs():
                           comparison=comparison,
                           drug1=drug1,
                           drug2=drug2)
+
+@app.post('/myruby/recipe/<int:recipe_id>/save')
+def save_recipe(recipe_id):
+    user_id = get_user_id()
+
+    try:
+        recipe = get_recipe_details(recipe_id)
+
+        with get_database() as connection:
+            connection.execute(
+                '''
+                INSERT OR IGNORE INTO saved_recipes
+                (user_id, spoonacular_id, title, image)
+                VALUES (?, ?, ?, ?)
+                ''',
+                (
+                    user_id,
+                    recipe_id,
+                    recipe.get('title', 'Untitled Recipe'),
+                    recipe.get('image', '')
+                )
+            )
+        return {'status': 'saved'}, 200
+
+    except Exception:
+        app.logger.exception('Failed to save recipe')
+        return {'status': 'error'}, 500
+
+@app.post('/myruby/recipe/<int:saved_recipe_id>/delete')
+def delete_saved_recipe(saved_recipe_id):
+    user_id = get_user_id()
+
+    with get_database() as connection:
+        deleted = connection.execute(
+            '''
+            DELETE FROM saved_recipes
+            WHERE id = ? AND user_id = ?  
+            ''',
+            (saved_recipe_id, user_id)
+        )
+
+    if deleted.rowcount:
+        return {'status': 'deleted'}, 200
+
+    return {'status': 'not found'}, 404
 
 
 if __name__ == '__main__':

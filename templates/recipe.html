@@ -85,7 +85,8 @@
                         View Recipe
                     </a>
 
-                    <button type="button" class="btn btn-outline-success w-100">
+                    <button type="button" class="btn btn-outline-success w-100 save-recipe-btn" data-recipe-id="{{ recipe.id }}">
+                        <i class="bi bi-bookmark-plus"></i>
                         Save Recipe
                     </button>
 
@@ -104,5 +105,31 @@
         document.querySelector(".recipe-search").reset();
     });
 </script>
+
+<script>
+document.querySelectorAll('.save-recipe-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+        const recipeId = button.dataset.recipeId;
+
+        button.disabled = true;
+
+        fetch(`/myruby/recipe/${recipeId}/save`, {
+            method: 'POST'
+        })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Failed to save recipe');
+            }
+
+            button.innerHTML = '<i class="bi bi-bookmark-check"></i> Saved';
+        })
+        .catch(function(error) {
+            button.disabled = false;
+            console.error('Save recipe request failed:', error)
+        });
+    });
+});
+</script>
+
 
 {% endblock content %}
