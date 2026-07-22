@@ -225,6 +225,10 @@ body {
     transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
+.card-title {
+    color: black;
+}
+
 .signup-button:hover {
     background-color: #e6f66b;
     color: #153d29;
