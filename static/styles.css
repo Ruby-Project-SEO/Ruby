@@ -1741,6 +1741,13 @@ body {
     padding-bottom: 60px;
 }
 
+.recipe-hero.comparison-top {
+    min-height: 1000px;
+    align-items: flex-start;
+    padding-top: 90px;
+    padding-bottom: 60px;
+}
+
 .routine-results{
     padding: 3rem 24px;
     background: linear-gradient(145deg, #315f4d, #173f2e);

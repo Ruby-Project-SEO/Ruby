@@ -63,7 +63,7 @@ def get_recipe_details(recipe_id):
   return response.json()
 
 
-def search_food(food):
+def search_food(food, price):
     if not spoonacular_key:
       raise RuntimeError("SPOONACULAR_KEY is not configured")
 
@@ -88,7 +88,7 @@ def search_food(food):
         image = f"https://img.spoonacular.com/products/{image}"
       results.append({
         "Food": item.get("title", "N/A"),
-        "Price": "Price not available",
+        "Price": price ,
         "Image": image
       })
     return results
@@ -96,10 +96,14 @@ def search_food(food):
 
 def get_food_price(food_id):
   response = requests.get(f"https://api.spoonacular.com/food/products/{food_id}",
-                          params={"apiKey": spoonacular_key})
+                          params={"apiKey": spoonacular_key},
+                          timeout=10)
   
-  info = response.json()
 
+  if response.status_code != 200:
+    return "Price not available"
+
+  info = response.json()
   price = info.get("price", None)
 
   if price is None or price <= 0:
@@ -226,7 +230,7 @@ def generate_food_remedies(issue):
   """
 
   resp = client.models.generate_content(
-      model="gemini-2.5-flash",
+      model="gemini-3.5-flash",
       contents=prompt
   )
 
@@ -236,11 +240,14 @@ def generate_food_remedies(issue):
   all_results = []
   spoonacular_available = True
 
+  prices = generate_price(foods)
+
   for food in foods:
+    price = prices.get(food, 'N/A')
     result = None
     if spoonacular_available:
       try:
-        result = search_food(food)
+        result = search_food(food, price)
       except (requests.RequestException, RuntimeError):
         spoonacular_available = False
     if result:
@@ -248,7 +255,7 @@ def generate_food_remedies(issue):
     else:
       all_results.append({
         "Food": food,
-        "Price": "Price not available",
+        "Price": price,
         "Image": None
       })
   
@@ -262,7 +269,7 @@ def generate_drug_remedies(issue):
   """
 
   resp = client.models.generate_content(
-      model="gemini-2.5-flash",
+      model="gemini-3.5-flash",
       contents=prompt
   )
   drugs = resp.text.split(",")
@@ -290,7 +297,7 @@ def generate_cosmetic_remedies(issue):
   """
 
   resp = client.models.generate_content(
-      model="gemini-2.5-flash",
+      model="gemini-3.5-flash",
       contents=prompt
   )
   cosmetics = resp.text.split(",")
@@ -318,7 +325,7 @@ def generate_price(items):
   """
 
   resp = client.models.generate_content(
-      model="gemini-2.5-flash",
+      model="gemini-3.5-flash",
       contents=prompt
   )
 
@@ -336,23 +343,48 @@ def generate_price(items):
 
 
 def generate_drug_comparison(drug1, drug2):
-  prompt = f"""
-  Compare these two drugs for educational purposes: {drug1} and {drug2}.
-  Give pros and cons. Do not recommend a dosage and you are not replacing medical advice.
-  Format it like this:
+    prompt = f"""
+Compare {drug1} and {drug2} for educational purposes.
 
-  {drug1.capitalize()}
-  Pros:
-  Cons:
+Return only the comparison. Do not include:
+- a disclaimer
+- an introduction
+- a conclusion
+- Markdown headings
+- bold formatting
+- any additional sections
 
-  {drug2.capitalize()}
-  Pros:
-  Cons:
-  """
+Use exactly this structure:
 
-  resp = client.models.generate_content(
-      model="gemini-2.5-flash",
-      contents=prompt
-  )
+{drug1.capitalize()}
+Pros:
+- First pro
+- Second pro
+- Third pro
+Cons:
+- First con
+- Second con
+- Third con
 
-  return resp.text
+{drug2.capitalize()}
+Pros:
+- First pro
+- Second pro
+- Third pro
+Cons:
+- First con
+- Second con
+- Third con
+
+Each drug must be one continuous section.
+Include exactly one blank line between the two drugs.
+Do not place blank lines inside either drug section.
+"""
+
+    resp = client.models.generate_content(
+        model="gemini-3.5-flash",
+        contents=prompt
+    )
+
+    return resp.text
+
