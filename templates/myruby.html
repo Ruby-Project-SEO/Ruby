@@ -17,7 +17,7 @@
             Add your specialized recipes and routines
         </p>
 
-        {% if not saved_routines %}
+        {% if not saved_routines and not saved_recipes %}
             <p id="empty-cart-message">Right now your cart is empty, explore other pages to add items</p>
         {% else %}
             <p id="empty-cart-message" hidden>Right now your cart is empty, explore other pages to add items</p>
@@ -80,8 +80,56 @@
             {% endfor %}
         {% endif %}
 
+        {% if saved_recipes %}
+    <h2>Saved Recipes</h2>
+
+    <div class="row g-4">
+        {% for recipe in saved_recipes %}
+            <div class="col-sm-6 col-lg-4">
+                <div class="card recipe-card h-100 border-0 shadow-sm saved-recipe-card">
+
+                    {% if recipe.image %}
+                        <img
+                            src="{{ recipe.image }}"
+                            class="card-img-top recipe-card-image"
+                            alt="{{ recipe.title }}"
+                        >
+                    {% endif %}
+
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">
+                            {{ recipe.title }}
+                        </h5>
+
+                        <div class="mt-auto">
+                            <a
+                                href="{{ url_for('recipe_details', recipe_id=recipe.spoonacular_id) }}"
+                                class="btn btn-outline-success w-100 mb-2"
+                            >
+                                View Recipe
+                            </a>
+
+                            <button
+                                type="button"
+                                class="btn btn-outline-danger w-100 delete-recipe-btn"
+                                data-recipe-id="{{ recipe.id }}"
+                            >
+                                <i class="bi bi-trash"></i>
+                                Remove from MyRuby
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+
     </div>
 </section>
+
 <script>
 document.querySelectorAll('.save-routine-btn').forEach(function(button) {
     button.addEventListener('click', function() {
@@ -92,7 +140,7 @@ document.querySelectorAll('.save-routine-btn').forEach(function(button) {
         .then(response => {
             if (response.ok) {
                 button.closest('.routine-card').remove();
-                if (document.querySelectorAll('routine-card').length === 0){
+                if (document.querySelectorAll('.routine-card').length === 0){
                     document.getElementById('empty-cart-message').hidden = false;
                     }
             } else {
@@ -100,6 +148,38 @@ document.querySelectorAll('.save-routine-btn').forEach(function(button) {
             }
         })
         .catch(error => console.error('Delete request failed:', error));
+    });
+});
+
+document.querySelectorAll('.delete-recipe-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+        const recipeId = button.dataset.recipeId;
+
+        fetch(`/myruby/recipe/${recipeId}/delete`, {
+            method: 'POST'
+        })
+        .then(function(response) {
+            if (response.ok) {
+                button.closest('.saved-recipe-card').remove();
+
+                const routinesLeft =
+                    document.querySelectorAll('.routine-card').length;
+
+                const recipesLeft =
+                    document.querySelectorAll('.saved-recipe-card').length;
+
+                if (routinesLeft === 0 && recipesLeft === 0) {
+                    document.getElementById(
+                        'empty-cart-message'
+                    ).hidden = false;
+                }
+            } else {
+                console.error('Failed to delete recipe');
+            }
+        })
+        .catch(function(error) {
+            console.error('Recipe delete request failed:', error);
+        });
     });
 });
 
