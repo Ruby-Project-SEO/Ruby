@@ -3,6 +3,9 @@ import git
 import secrets
 import sqlite3
 import requests
+import time
+from collections import defaultdict, deque
+from datetime import timedelta
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -28,6 +31,9 @@ app = Flask(__name__)
 proxied = FlaskBehindProxy(app)
 DATABASE = Path(app.instance_path) / 'ruby.db'
 SECRET_FILE = Path(app.instance_path) / 'secret_key'
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '').rstrip('/')
+SUPABASE_PUBLISHABLE_KEY = os.environ.get('SUPABASE_PUBLISHABLE_KEY', '')
+LOGIN_ATTEMPTS = defaultdict(deque)
 
 class RubyGuidance(BaseModel):
     is_wellness_related: bool = Field(
@@ -64,6 +70,57 @@ def get_secret_key():
     return SECRET_FILE.read_text().strip()
 
 app.config['SECRET_KEY'] = get_secret_key()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('FLASK_ENV') == 'production',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+)
+
+def client_ip():
+    forwarded = request.headers.get('X-Forwarded-For', '')
+    return forwarded.split(',', 1)[0].strip() or request.remote_addr or 'unknown'
+
+def login_rate_limited():
+    now = time.monotonic()
+    attempts = LOGIN_ATTEMPTS[client_ip()]
+    while attempts and attempts[0] < now - 900:
+        attempts.popleft()
+    if len(attempts) >= 8:
+        return True
+    attempts.append(now)
+    return False
+
+def auth_form_token():
+    if 'auth_form_token' not in session:
+        session['auth_form_token'] = secrets.token_urlsafe(32)
+    return session['auth_form_token']
+
+def valid_auth_form():
+    expected = session.get('auth_form_token', '')
+    supplied = request.form.get('auth_form_token', '')
+    return bool(expected and supplied and secrets.compare_digest(expected, supplied))
+
+def supabase_auth(path, payload):
+    if not SUPABASE_URL or not SUPABASE_PUBLISHABLE_KEY:
+        raise RuntimeError('Supabase authentication is not configured.')
+    return requests.post(
+        f'{SUPABASE_URL}/auth/v1/{path}',
+        headers={
+            'apikey': SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+        },
+        json=payload,
+        timeout=10,
+    )
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'same-origin'
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 @app.template_filter('format_price')
 def format_price(value):
@@ -284,7 +341,13 @@ def home():
 
 @app.route('/login')
 def login():
-    return render_template('login.html')
+    if session.get('user_id') and session.get('username'):
+        return redirect(url_for('home'))
+    return render_template(
+        'login.html',
+        register=request.args.get('mode') == 'register',
+        auth_form_token=auth_form_token(),
+    )
 
 @app.post('/logout')
 def logout():
@@ -293,10 +356,93 @@ def logout():
 
 @app.route('/entry', methods= ["GET", "POST"])
 def entry():
-    if request.method == "POST":
-        session['username'] = request.form["usr"]
-        return redirect(url_for('home'))
-    return redirect(url_for('login'))
+    if request.method != 'POST':
+        return redirect(url_for('login'))
+    if not valid_auth_form():
+        return redirect(url_for('login'))
+    if login_rate_limited():
+        return render_template(
+            'login.html',
+            error='Too many attempts. Please wait 15 minutes and try again.',
+            auth_form_token=auth_form_token(),
+        ), 429
+
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '')
+    try:
+        response = supabase_auth(
+            'token?grant_type=password',
+            {'email': email, 'password': password},
+        )
+    except (RuntimeError, requests.RequestException):
+        return render_template(
+            'login.html',
+            error='Login is temporarily unavailable. Please try again.',
+            auth_form_token=auth_form_token(),
+        ), 503
+
+    if not response.ok:
+        return render_template(
+            'login.html',
+            error='Invalid email or password.',
+            auth_form_token=auth_form_token(),
+        ), 401
+
+    user = response.json().get('user', {})
+    session.clear()
+    session.permanent = True
+    session['user_id'] = user.get('id')
+    session['username'] = user.get('email', email)
+    LOGIN_ATTEMPTS.pop(client_ip(), None)
+    return redirect(url_for('home'))
+
+@app.post('/register')
+def register():
+    if not valid_auth_form():
+        return redirect(url_for('login', mode='register'))
+    if login_rate_limited():
+        return render_template(
+            'login.html',
+            register=True,
+            error='Too many attempts. Please wait 15 minutes and try again.',
+            auth_form_token=auth_form_token(),
+        ), 429
+
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '')
+    if len(password) < 12:
+        return render_template(
+            'login.html',
+            register=True,
+            error='Use a password with at least 12 characters.',
+            auth_form_token=auth_form_token(),
+        ), 400
+    try:
+        response = supabase_auth(
+            'signup',
+            {'email': email, 'password': password},
+        )
+    except (RuntimeError, requests.RequestException):
+        return render_template(
+            'login.html',
+            register=True,
+            error='Registration is temporarily unavailable. Please try again.',
+            auth_form_token=auth_form_token(),
+        ), 503
+
+    if not response.ok:
+        return render_template(
+            'login.html',
+            register=True,
+            error='Registration could not be completed. Try a different email.',
+            auth_form_token=auth_form_token(),
+        ), 400
+    LOGIN_ATTEMPTS.pop(client_ip(), None)
+    return render_template(
+        'login.html',
+        message='Check your email to confirm your account, then log in.',
+        auth_form_token=auth_form_token(),
+    )
 
 @app.post('/ask-ruby')
 def ask_ruby():

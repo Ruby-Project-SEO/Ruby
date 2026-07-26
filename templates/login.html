@@ -20,24 +20,38 @@
                 <h2> <em>Your personalized wellness companion.</em></h2>
             </div>
             <div class="wrapper">
-                <form action="/entry" method="post">
-                    <h1>Login</h1>
+                <form action="{{ url_for('register') if register else url_for('entry') }}" method="post">
+                    <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                    <h1>{{ 'Register' if register else 'Login' }}</h1>
+                    {% if error %}
+                    <p role="alert">{{ error }}</p>
+                    {% endif %}
+                    {% if message %}
+                    <p role="status">{{ message }}</p>
+                    {% endif %}
                     <div class="input-box">
-                        <input type="text" placeholder="Username" required name="usr">
+                        <input type="email" placeholder="Email" required name="email" autocomplete="email">
                         <i class="bx bx-user"></i>
                     </div>
                     <div class="input-box">
-                        <input type="password" placeholder="Password" required>
+                        <input type="password" placeholder="Password" required name="password"
+                               minlength="{{ 12 if register else 1 }}"
+                               autocomplete="{{ 'new-password' if register else 'current-password' }}">
                         <i class="bx bx-lock"></i>
                     </div>
+                    {% if not register %}
                     <div class="remember-forgot">
-                    <label><input type="checkbox"> Remember Me?</label>
-                    <a href="#"> Forgot Password? </a>
+                    <span></span>
                     </div>
+                    {% endif %}
 
-                    <button type="submit" class="btn"> Login </button>
+                    <button type="submit" class="btn">{{ 'Create account' if register else 'Login' }}</button>
                     <div class="register-link">
-                        <p> Don't have an account? <a href="#"> Register</a></p>
+                        {% if register %}
+                        <p>Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
+                        {% else %}
+                        <p>Don't have an account? <a href="{{ url_for('login', mode='register') }}">Register</a></p>
+                        {% endif %}
                     </div>
                 </form>
             </div>
