@@ -63,7 +63,21 @@
                 <form class="auth-form" action="{{ url_for('register') if register else url_for('entry') }}" method="post">
                     <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
 
+                    {% if register %}
+                    <label for="full-name">Full name</label>
+                    <div class="auth-input">
+                        <i class="bx bx-user" aria-hidden="true"></i>
+                        <input id="full-name" type="text" name="full_name" placeholder="Your name"
+                               required maxlength="80" autocomplete="name">
+                    </div>
+                    <div class="auth-label-row">
+                    {% else %}
                     <label for="email">Email address</label>
+                    {% endif %}
+                    {% if register %}
+                        <label for="email">Email address</label>
+                    </div>
+                    {% endif %}
                     <div class="auth-input">
                         <i class="bx bx-envelope" aria-hidden="true"></i>
                         <input id="email" type="email" name="email" placeholder="you@example.com"

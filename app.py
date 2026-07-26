@@ -118,10 +118,18 @@ def supabase_auth(path, payload):
     )
 
 def establish_session(user):
+    metadata = user.get('user_metadata') or {}
+    display_name = (
+        metadata.get('full_name')
+        or metadata.get('name')
+        or metadata.get('display_name')
+        or user.get('email', '').split('@', 1)[0]
+    )
     session.clear()
     session.permanent = True
     session['user_id'] = user.get('id')
-    session['username'] = user.get('email')
+    session['username'] = display_name
+    session['user_email'] = user.get('email')
 
 @app.after_request
 def add_security_headers(response):
@@ -473,8 +481,16 @@ def register():
             auth_form_token=auth_form_token(),
         ), 429
 
+    full_name = request.form.get('full_name', '').strip()
     email = request.form.get('email', '').strip().lower()
     password = request.form.get('password', '')
+    if not full_name or len(full_name) > 80:
+        return render_template(
+            'login.html',
+            register=True,
+            error='Enter your name.',
+            auth_form_token=auth_form_token(),
+        ), 400
     if len(password) < 12:
         return render_template(
             'login.html',
@@ -485,7 +501,11 @@ def register():
     try:
         response = supabase_auth(
             'signup',
-            {'email': email, 'password': password},
+            {
+                'email': email,
+                'password': password,
+                'data': {'full_name': full_name},
+            },
         )
     except (RuntimeError, requests.RequestException):
         return render_template(
