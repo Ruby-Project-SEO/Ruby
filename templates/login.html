@@ -6,13 +6,14 @@
     <meta name="description" content="Sign in to Ruby, your personal wellness companion.">
     <title>{{ 'Create account' if register else 'Welcome back' }} · Ruby</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://cdn.boxicons.com/3.0.8/fonts/basic/boxicons.min.css" rel="stylesheet">
 </head>
 <body class="auth-body">
     <main class="auth-shell">
         <section class="auth-story" aria-label="About Ruby">
             <a class="auth-brand" href="{{ url_for('login') }}" aria-label="Ruby home">
-                <span class="auth-brand-mark">R</span>
+                <i class="bi bi-gem" aria-hidden="true"></i>
                 <span>RUBY</span>
             </a>
             <div class="auth-story-copy">

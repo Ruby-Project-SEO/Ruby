@@ -62,15 +62,9 @@
     text-decoration: none;
 }
 
-.auth-brand-mark {
-    display: grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    border: 1px solid rgba(255, 255, 255, .55);
-    border-radius: 50%;
+.auth-brand i {
     color: #d9ed3f;
-    font-size: 22px;
+    font-size: 25px;
 }
 
 .auth-story-copy {
