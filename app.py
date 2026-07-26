@@ -4,10 +4,13 @@ import secrets
 import sqlite3
 import requests
 import time
+import base64
+import hashlib
 from collections import defaultdict, deque
 from datetime import timedelta
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlencode
 from uuid import uuid4
 
 from flask import Flask, render_template, url_for, redirect, request, session
@@ -113,6 +116,12 @@ def supabase_auth(path, payload):
         json=payload,
         timeout=10,
     )
+
+def establish_session(user):
+    session.clear()
+    session.permanent = True
+    session['user_id'] = user.get('id')
+    session['username'] = user.get('email')
 
 @app.after_request
 def add_security_headers(response):
@@ -389,11 +398,67 @@ def entry():
         ), 401
 
     user = response.json().get('user', {})
-    session.clear()
-    session.permanent = True
-    session['user_id'] = user.get('id')
-    session['username'] = user.get('email', email)
+    establish_session(user)
+    if not session.get('username'):
+        session['username'] = email
     LOGIN_ATTEMPTS.pop(client_ip(), None)
+    return redirect(url_for('home'))
+
+@app.get('/auth/google')
+def google_login():
+    if not SUPABASE_URL or not SUPABASE_PUBLISHABLE_KEY:
+        return render_template(
+            'login.html',
+            error='Google sign-in is temporarily unavailable.',
+            auth_form_token=auth_form_token(),
+        ), 503
+
+    verifier = secrets.token_urlsafe(64)
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).decode().rstrip('=')
+    session['oauth_code_verifier'] = verifier
+    query = urlencode({
+        'provider': 'google',
+        'redirect_to': url_for('google_callback', _external=True),
+        'code_challenge': challenge,
+        'code_challenge_method': 's256',
+    })
+    return redirect(f'{SUPABASE_URL}/auth/v1/authorize?{query}')
+
+@app.get('/auth/google/callback')
+def google_callback():
+    code = request.args.get('code', '')
+    verifier = session.pop('oauth_code_verifier', '')
+    if request.args.get('error') or not code or not verifier:
+        return render_template(
+            'login.html',
+            error='Google sign-in could not be completed. Please try again.',
+            auth_form_token=auth_form_token(),
+        ), 400
+
+    try:
+        response = supabase_auth(
+            'token?grant_type=pkce',
+            {'auth_code': code, 'code_verifier': verifier},
+        )
+    except (RuntimeError, requests.RequestException):
+        response = None
+    if response is None or not response.ok:
+        return render_template(
+            'login.html',
+            error='Google sign-in could not be completed. Please try again.',
+            auth_form_token=auth_form_token(),
+        ), 401
+
+    user = response.json().get('user', {})
+    if not user.get('id') or not user.get('email'):
+        return render_template(
+            'login.html',
+            error='Google did not provide a usable account.',
+            auth_form_token=auth_form_token(),
+        ), 401
+    establish_session(user)
     return redirect(url_for('home'))
 
 @app.post('/register')
