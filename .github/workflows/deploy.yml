@@ -1,0 +1,51 @@
+name: Test and deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check application imports
+        env:
+          GENAI_KEY: disabled-for-ci
+          SECRET_KEY: ci-only-secret
+        run: python -c "from app import app; assert app"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy to PythonAnywhere
+        env:
+          DEPLOY_SECRET: ${{ secrets.PYTHONANYWHERE_DEPLOY_SECRET }}
+        run: |
+          test -n "$DEPLOY_SECRET"
+          curl --fail-with-body --retry 2 --max-time 120 \
+            --request POST \
+            --header "Authorization: Bearer $DEPLOY_SECRET" \
+            https://rubywellness.pythonanywhere.com/update_server
