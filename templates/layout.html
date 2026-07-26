@@ -35,9 +35,20 @@
 
           <div class="navbar-nav navbar-actions">
             {% if session.get('username') %}
-            <form action="{{ url_for('logout') }}" method="POST">
-              <button class="nav-link login-link logout-button" type="submit">Logout</button>
-            </form>
+            <div class="account-menu" aria-label="Signed-in account">
+              <span class="account-identity" title="{{ session.get('user_email', '') }}">
+                <span class="account-avatar" aria-hidden="true">
+                  <i class="bi bi-person-fill"></i>
+                </span>
+                <span class="account-name">{{ session.get('username') }}</span>
+              </span>
+              <form action="{{ url_for('logout') }}" method="POST">
+                <button class="account-logout" type="submit" aria-label="Log out">
+                  <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                  <span>Logout</span>
+                </button>
+              </form>
+            </div>
             {% else %}
             <a class="nav-link login-link" href="{{ url_for('login') }}">Login</a>
             <a class="signup-button" href="/register">Sign Up</a>
