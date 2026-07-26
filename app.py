@@ -127,11 +127,15 @@ def establish_session(user):
         or metadata.get('display_name')
         or user.get('email', '').split('@', 1)[0]
     )
+    avatar_url = metadata.get('avatar_url', '')
+    if not avatar_url.startswith('https://lh3.googleusercontent.com/'):
+        avatar_url = None
     session.clear()
     session.permanent = True
     session['user_id'] = user.get('id')
     session['username'] = display_name
     session['user_email'] = user.get('email')
+    session['avatar_url'] = avatar_url
 
 @app.context_processor
 def google_sign_in_context():
