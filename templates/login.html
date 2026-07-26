@@ -3,59 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ruby</title>
-    <link rel="stylesheet" href="static/styles.css">
-    <!-- Basic Icons -->
+    <meta name="description" content="Sign in to Ruby, your personal wellness companion.">
+    <title>{{ 'Create account' if register else 'Welcome back' }} · Ruby</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link href="https://cdn.boxicons.com/3.0.8/fonts/basic/boxicons.min.css" rel="stylesheet">
-    <!-- Filled Icons -->
-    <link href="https://cdn.boxicons.com/3.0.8/fonts/filled/boxicons-filled.min.css" rel="stylesheet">
-    <!-- Brand Icons -->
-    <link href="https://cdn.boxicons.com/3.0.8/fonts/brands/boxicons-brands.min.css" rel="stylesheet">
 </head>
-<body class="login-body">
-    <div class="login-page">
-        <div class="login-container">
-            <div class="login-title">
-                <h1> Welcome to RUBY</h1>
-                <h2> <em>Your personalized wellness companion.</em></h2>
+<body class="auth-body">
+    <main class="auth-shell">
+        <section class="auth-story" aria-label="About Ruby">
+            <a class="auth-brand" href="{{ url_for('login') }}" aria-label="Ruby home">
+                <span class="auth-brand-mark">R</span>
+                <span>RUBY</span>
+            </a>
+            <div class="auth-story-copy">
+                <p class="auth-eyebrow">A calmer way to care for yourself</p>
+                <h1>Wellness guidance that feels personal.</h1>
+                <p>Build routines, explore nourishing recipes, and keep your everyday wellness in one thoughtful place.</p>
             </div>
-            <div class="wrapper">
-                <form action="{{ url_for('register') if register else url_for('entry') }}" method="post">
+            <p class="auth-story-note">Small steps. Clear guidance. Your pace.</p>
+        </section>
+
+        <section class="auth-panel">
+            <div class="auth-card">
+                <div class="auth-card-heading">
+                    <p class="auth-mobile-brand">RUBY</p>
+                    <h2>{{ 'Create your account' if register else 'Welcome back' }}</h2>
+                    <p>
+                        {{ 'Start building your personal wellness space.' if register
+                           else 'Sign in to continue your wellness journey.' }}
+                    </p>
+                </div>
+
+                {% if error %}
+                <div class="auth-alert auth-alert-error" role="alert">
+                    <i class="bx bx-error-circle" aria-hidden="true"></i>
+                    <span>{{ error }}</span>
+                </div>
+                {% endif %}
+                {% if message %}
+                <div class="auth-alert auth-alert-success" role="status">
+                    <i class="bx bx-check-circle" aria-hidden="true"></i>
+                    <span>{{ message }}</span>
+                </div>
+                {% endif %}
+
+                <form class="auth-form" action="{{ url_for('register') if register else url_for('entry') }}" method="post">
                     <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
-                    <h1>{{ 'Register' if register else 'Login' }}</h1>
-                    {% if error %}
-                    <p role="alert">{{ error }}</p>
-                    {% endif %}
-                    {% if message %}
-                    <p role="status">{{ message }}</p>
-                    {% endif %}
-                    <div class="input-box">
-                        <input type="email" placeholder="Email" required name="email" autocomplete="email">
-                        <i class="bx bx-user"></i>
+
+                    <label for="email">Email address</label>
+                    <div class="auth-input">
+                        <i class="bx bx-envelope" aria-hidden="true"></i>
+                        <input id="email" type="email" name="email" placeholder="you@example.com"
+                               required autocomplete="email" inputmode="email">
                     </div>
-                    <div class="input-box">
-                        <input type="password" placeholder="Password" required name="password"
-                               minlength="{{ 12 if register else 1 }}"
+
+                    <div class="auth-label-row">
+                        <label for="password">Password</label>
+                    </div>
+                    <div class="auth-input">
+                        <i class="bx bx-lock" aria-hidden="true"></i>
+                        <input id="password" type="password" name="password" placeholder="Enter your password"
+                               required minlength="{{ 12 if register else 1 }}"
                                autocomplete="{{ 'new-password' if register else 'current-password' }}">
-                        <i class="bx bx-lock"></i>
+                        <button class="password-toggle" type="button" aria-label="Show password"
+                                aria-controls="password" aria-pressed="false">
+                            <i class="bx bx-eye" aria-hidden="true"></i>
+                        </button>
                     </div>
-                    {% if not register %}
-                    <div class="remember-forgot">
-                    <span></span>
-                    </div>
+                    {% if register %}
+                    <p class="auth-help">Use at least 12 characters.</p>
                     {% endif %}
 
-                    <button type="submit" class="btn">{{ 'Create account' if register else 'Login' }}</button>
-                    <div class="register-link">
-                        {% if register %}
-                        <p>Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
-                        {% else %}
-                        <p>Don't have an account? <a href="{{ url_for('login', mode='register') }}">Register</a></p>
-                        {% endif %}
-                    </div>
+                    <button type="submit" class="auth-submit">
+                        {{ 'Create account' if register else 'Sign in' }}
+                    </button>
                 </form>
+
+                <p class="auth-switch">
+                    {% if register %}
+                    Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
+                    {% else %}
+                    New to Ruby? <a href="{{ url_for('login', mode='register') }}">Create an account</a>
+                    {% endif %}
+                </p>
+
+                <p class="auth-legal">By continuing, you agree to use Ruby for general wellness information only.</p>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
+
+    <script>
+        const toggle = document.querySelector('.password-toggle');
+        const password = document.querySelector('#password');
+        toggle.addEventListener('click', () => {
+            const showing = password.type === 'text';
+            password.type = showing ? 'password' : 'text';
+            toggle.setAttribute('aria-pressed', String(!showing));
+            toggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+            toggle.querySelector('i').className = showing ? 'bx bx-eye' : 'bx bx-eye-slash';
+        });
+    </script>
 </body>
 </html>
