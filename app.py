@@ -372,7 +372,7 @@ def webhook():
 
     try:
         repo = git.Repo(repo_path)
-        if repo.is_dirty(untracked_files=True):
+        if repo.is_dirty(untracked_files=False):
             app.logger.error('Deployment stopped because the server repository has local changes')
             return 'Server repository has local changes', 409
 
