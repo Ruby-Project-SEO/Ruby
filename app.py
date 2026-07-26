@@ -4,13 +4,11 @@ import secrets
 import sqlite3
 import requests
 import time
-import base64
 import hashlib
 from collections import defaultdict, deque
 from datetime import timedelta
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlencode
 from uuid import uuid4
 
 from flask import Flask, render_template, url_for, redirect, request, session
@@ -36,6 +34,10 @@ DATABASE = Path(app.instance_path) / 'ruby.db'
 SECRET_FILE = Path(app.instance_path) / 'secret_key'
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '').rstrip('/')
 SUPABASE_PUBLISHABLE_KEY = os.environ.get('SUPABASE_PUBLISHABLE_KEY', '')
+GOOGLE_CLIENT_ID = os.environ.get(
+    'GOOGLE_CLIENT_ID',
+    '725724612296-hc0jlt97b7a1bs5svmobbdo7o6p101sv.apps.googleusercontent.com',
+)
 LOGIN_ATTEMPTS = defaultdict(deque)
 
 class RubyGuidance(BaseModel):
@@ -130,6 +132,17 @@ def establish_session(user):
     session['user_id'] = user.get('id')
     session['username'] = display_name
     session['user_email'] = user.get('email')
+
+@app.context_processor
+def google_sign_in_context():
+    if not GOOGLE_CLIENT_ID or session.get('user_id'):
+        return {'google_client_id': None, 'google_nonce_hash': None}
+    nonce = secrets.token_urlsafe(32)
+    session['google_sign_in_nonce'] = nonce
+    return {
+        'google_client_id': GOOGLE_CLIENT_ID,
+        'google_nonce_hash': hashlib.sha256(nonce.encode()).hexdigest(),
+    }
 
 @app.after_request
 def add_security_headers(response):
@@ -412,43 +425,26 @@ def entry():
     LOGIN_ATTEMPTS.pop(client_ip(), None)
     return redirect(url_for('home'))
 
-@app.get('/auth/google')
-def google_login():
-    if not SUPABASE_URL or not SUPABASE_PUBLISHABLE_KEY:
-        return render_template(
-            'login.html',
-            error='Google sign-in is temporarily unavailable.',
-            auth_form_token=auth_form_token(),
-        ), 503
-
-    verifier = secrets.token_urlsafe(64)
-    challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(verifier.encode()).digest()
-    ).decode().rstrip('=')
-    session['oauth_code_verifier'] = verifier
-    query = urlencode({
-        'provider': 'google',
-        'redirect_to': url_for('google_callback', _external=True),
-        'code_challenge': challenge,
-        'code_challenge_method': 's256',
-    })
-    return redirect(f'{SUPABASE_URL}/auth/v1/authorize?{query}')
-
-@app.get('/auth/google/callback')
-def google_callback():
-    code = request.args.get('code', '')
-    verifier = session.pop('oauth_code_verifier', '')
-    if request.args.get('error') or not code or not verifier:
+@app.post('/auth/google/token')
+def google_token():
+    nonce = session.pop('google_sign_in_nonce', '')
+    credential = request.form.get('credential', '')
+    if not valid_auth_form() or not nonce or not credential:
         return render_template(
             'login.html',
             error='Google sign-in could not be completed. Please try again.',
             auth_form_token=auth_form_token(),
         ), 400
-
+    if login_rate_limited():
+        return render_template(
+            'login.html',
+            error='Too many attempts. Please wait 15 minutes and try again.',
+            auth_form_token=auth_form_token(),
+        ), 429
     try:
         response = supabase_auth(
-            'token?grant_type=pkce',
-            {'auth_code': code, 'code_verifier': verifier},
+            'token?grant_type=id_token',
+            {'provider': 'google', 'id_token': credential, 'nonce': nonce},
         )
     except (RuntimeError, requests.RequestException):
         response = None
@@ -467,6 +463,7 @@ def google_callback():
             auth_form_token=auth_form_token(),
         ), 401
     establish_session(user)
+    LOGIN_ATTEMPTS.pop(client_ip(), None)
     return redirect(url_for('home'))
 
 @app.post('/register')
