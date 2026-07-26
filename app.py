@@ -357,15 +357,39 @@ def generate_routine_answer(client, model, product_name):
 
 
 
-@app.route("/update_server", methods=['POST'])
+@app.post("/update_server")
 def webhook():
-    if request.method == 'POST':
-        repo = git.Repo('/home/wellness/Ruby')
+    deploy_secret = os.environ.get('DEPLOY_WEBHOOK_SECRET', '')
+    supplied_secret = request.headers.get('Authorization', '').removeprefix('Bearer ')
+    if not deploy_secret or not secrets.compare_digest(deploy_secret, supplied_secret):
+        return 'Not found', 404
+
+    repo_path = Path(os.environ.get('DEPLOY_REPO_PATH', '/home/rubywellness/Ruby'))
+    wsgi_path = Path(os.environ.get(
+        'PYTHONANYWHERE_WSGI_FILE',
+        '/var/www/rubywellness_pythonanywhere_com_wsgi.py',
+    ))
+
+    try:
+        repo = git.Repo(repo_path)
+        if repo.is_dirty(untracked_files=True):
+            app.logger.error('Deployment stopped because the server repository has local changes')
+            return 'Server repository has local changes', 409
+
         origin = repo.remotes.origin
-        origin.pull()
-        return 'Updated PythonAnywhere successfully', 200
-    else:
-        return 'Wrong event type', 400
+        origin.fetch('main')
+
+        if 'main' not in repo.heads:
+            main_branch = repo.create_head('main', origin.refs.main)
+            main_branch.set_tracking_branch(origin.refs.main)
+        repo.heads.main.checkout()
+        origin.pull('main', ff_only=True)
+        wsgi_path.touch()
+    except Exception:
+        app.logger.exception('Automated deployment failed')
+        return 'Deployment failed', 500
+
+    return f'Deployed {repo.head.commit.hexsha[:7]}', 200
 
 @app.route('/')
 def home():
