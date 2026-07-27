@@ -2,6 +2,8 @@ import requests
 import pandas as pd
 import sqlalchemy as db
 import os
+import shutil
+from pathlib import Path
 
 from google import genai
 
@@ -12,10 +14,18 @@ spoonacular_key = (os.getenv('SPOONACULAR_KEY') or '').strip()
 
 client = genai.Client(api_key=my_api_key)
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATABASE_ROOT = PROJECT_ROOT / "database"
+DATABASE_ROOT.mkdir(parents=True, exist_ok=True)
+ITEM_DATABASE = DATABASE_ROOT / "item_status.db"
+LEGACY_ITEM_DATABASE = PROJECT_ROOT / "item_status.db"
+if not ITEM_DATABASE.exists() and LEGACY_ITEM_DATABASE.exists():
+  shutil.copy2(LEGACY_ITEM_DATABASE, ITEM_DATABASE)
+
 foodurl = "https://api.spoonacular.com/food/products/search"
 drugurl = "https://api.fda.gov/drug/label.json"
 cosmeticurl = "https://world.openbeautyfacts.org/cgi/search.pl"
-engine = db.create_engine('sqlite:///item_status.db')
+engine = db.create_engine(f"sqlite:///{ITEM_DATABASE}")
 
 def search_recipes(ingredients):
   spoonacular_key = (os.getenv("SPOONACULAR_KEY") or '').strip()
@@ -387,4 +397,3 @@ Do not place blank lines inside either drug section.
     )
 
     return resp.text
-
