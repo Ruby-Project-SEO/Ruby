@@ -1,6 +1,9 @@
 name: Test and deploy
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -36,6 +39,7 @@ jobs:
         run: python -c "from app import app; assert app"
 
   deploy:
+    if: github.event_name == 'push'
     needs: test
     runs-on: ubuntu-latest
     environment: production
