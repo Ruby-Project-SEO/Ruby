@@ -28,6 +28,22 @@ Finding trustworthy guidance for everyday health concerns can be overwhelming, w
   - [Spoonacular API] (https://spoonacular.com/food-api) - Specific meals/recipes given ingredients
 - **Version Control:** Git / GitHub
 
+## Project Structure
+
+```text
+backend/
+  app.py                Flask application, routes, auth, and dashboard logic
+  services/
+    wellness.py         External wellness, recipe, and product integrations
+frontend/
+  templates/            Jinja2 HTML templates
+  static/               CSS and image assets
+database/
+  README.md             SQLite storage documentation
+app.py                  Local and WSGI-compatible application entry point
+requirements.txt        Python dependencies
+```
+
 ## Getting Started
 
 ### Prerequisites
@@ -38,16 +54,16 @@ Finding trustworthy guidance for everyday health concerns can be overwhelming, w
 
 1. Clone the repository
 ```bash
-   git clone https://github.com/10sChris/Ruby.git
+   git clone https://github.com/Ruby-Project-SEO/Ruby.git
    cd Ruby
 ```
 
 2. Create and activate a virtual environment
 ```bash
-   python -m venv venv
-   source venv/bin/activate
+   python -m venv .venv
+   source .venv/bin/activate
   # On Windows:
-   venv\Scripts\activate
+   .venv\Scripts\activate
 ```
 
 
