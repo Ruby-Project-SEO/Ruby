@@ -2156,6 +2156,11 @@ body {
     font-weight: 750;
 }
 
+.food-result-logo.is-usda {
+    font-size: 11px;
+    letter-spacing: .04em;
+}
+
 .food-result-logo img {
     position: absolute;
     width: 100%;

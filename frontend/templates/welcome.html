@@ -551,14 +551,18 @@
             identity.className = 'food-result-identity';
             const logo = document.createElement('span');
             logo.className = 'food-result-logo';
-            const initials = (food.brand || food.name)
+            const initials = food.brand ? food.brand
                 .split(/\s+/)
                 .filter(Boolean)
                 .slice(0, 2)
                 .map((word) => word[0])
                 .join('')
-                .toUpperCase();
-            logo.textContent = initials || 'R';
+                .toUpperCase() : 'USDA';
+            logo.textContent = initials || 'USDA';
+            if (!food.brand) {
+                logo.classList.add('is-usda');
+                logo.setAttribute('aria-label', 'USDA food record');
+            }
             if (food.logo_url) {
                 const image = document.createElement('img');
                 image.src = food.logo_url;
