@@ -96,7 +96,10 @@
                             <h3>{{ option_name }}</h3>
                             <p>{{ item.get('Detail') or (ruby_category|capitalize ~ ' option') }}</p>
                         </div>
-                        <span class="option-price">{{ item.Price|format_price }}</span>
+                        <span class="option-price">
+                            {{ item.Price|format_price }}
+                            {% if item.get('PriceEstimated') %}<small>estimate</small>{% endif %}
+                        </span>
                         {% if ruby_category == 'food' %}
                         <span class="option-select"><i class="bi bi-plus-lg"></i></span>
                     </label>

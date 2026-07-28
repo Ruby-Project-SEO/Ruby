@@ -91,6 +91,15 @@ class RubyGuidance(BaseModel):
             'for the highest-ranked category.'
         ),
     )
+    estimated_prices_usd: list[float] = Field(
+        default_factory=list,
+        max_length=6,
+        description=(
+            'A rough typical US retail price estimate corresponding by index '
+            'to each suggested search term. Use 0 when a responsible estimate '
+            'is unavailable.'
+        ),
+    )
 
 class RoutineStep(BaseModel):
     product: str = Field(description='Product or step name, in the order it should be used.')
@@ -650,7 +659,10 @@ def generate_ruby_answer(client, model, question):
                 'For cosmetics, use common product types or ingredients. '
                 'For food, use common foods or ingredients. '
                 'For drugs, only use a medication name when the user explicitly names that medication; '
-                'otherwise leave suggested_search_terms empty rather than recommending a drug for symptoms.'
+                'otherwise leave suggested_search_terms empty rather than recommending a drug for symptoms. '
+                'For each suggested search term, provide one rough typical US retail price in '
+                'estimated_prices_usd in the same order. Use 0 if a responsible estimate is unavailable. '
+                'Do not make a separate tool call for prices.'
             ),
             thinking_config=types.ThinkingConfig(thinking_level='minimal'),
             max_output_tokens=800,
@@ -661,15 +673,23 @@ def generate_ruby_answer(client, model, question):
     return RubyGuidance.model_validate_json(response.text)
 
 
-def ruby_category_options(category, search_terms):
+def ruby_category_options(category, search_terms, estimated_prices=None):
     options = []
-    for term in search_terms[:6]:
+    estimated_prices = estimated_prices or []
+    for index, term in enumerate(search_terms[:6]):
         clean_term = str(term).strip()[:80]
         if not clean_term:
             continue
         try:
+            estimated_price = max(0.0, float(estimated_prices[index]))
+        except (IndexError, TypeError, ValueError):
+            estimated_price = 0.0
+        display_price = estimated_price if estimated_price > 0 else 'N/A'
+        try:
             if category == 'food':
-                matches = search_food(clean_term, 'N/A') or []
+                matches = search_food(clean_term, display_price) or []
+                for match in matches:
+                    match['PriceEstimated'] = estimated_price > 0
                 options.extend(matches[:1])
             elif category == 'drugs':
                 matches = search_medications(clean_term, 1)
@@ -677,7 +697,8 @@ def ruby_category_options(category, search_terms):
                     match = matches[0]
                     options.append({
                         'Drug': match['name'],
-                        'Price': 'N/A',
+                        'Price': display_price,
+                        'PriceEstimated': estimated_price > 0,
                         'Image': match.get('logo_url'),
                         'Detail': match.get('labeler') or match.get('generic_name'),
                     })
@@ -687,7 +708,8 @@ def ruby_category_options(category, search_terms):
                     match = matches[0]
                     options.append({
                         'Cosmetic': match['name'],
-                        'Price': 'N/A',
+                        'Price': display_price,
+                        'PriceEstimated': estimated_price > 0,
                         'Image': match.get('image_url') or match.get('logo_url'),
                         'Detail': match.get('brand'),
                     })
@@ -953,6 +975,7 @@ def ask_ruby():
             options = ruby_category_options(
                 top_category,
                 guidance.suggested_search_terms,
+                guidance.estimated_prices_usd,
             )
         else:
             ranking = []

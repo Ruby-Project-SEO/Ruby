@@ -13,11 +13,16 @@ def test_cosmetic_options_use_product_images(monkeypatch):
         }],
     )
 
-    options = app_module.ruby_category_options('cosmetics', ['eye cream'])
+    options = app_module.ruby_category_options(
+        'cosmetics',
+        ['eye cream'],
+        [18.99],
+    )
 
     assert options == [{
         'Cosmetic': 'Hydrating Eye Cream',
-        'Price': 'N/A',
+        'Price': 18.99,
+        'PriceEstimated': True,
         'Image': 'https://images.example/eye-cream.jpg',
         'Detail': 'Example Brand',
     }]
@@ -35,7 +40,13 @@ def test_drug_options_require_model_supplied_medication_name(monkeypatch):
         }],
     )
 
-    options = app_module.ruby_category_options('drugs', ['example medication'])
+    options = app_module.ruby_category_options(
+        'drugs',
+        ['example medication'],
+        [12],
+    )
 
     assert options[0]['Drug'] == 'Example Medication'
     assert options[0]['Detail'] == 'Example Labeler'
+    assert options[0]['Price'] == 12
+    assert options[0]['PriceEstimated'] is True

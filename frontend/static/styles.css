@@ -1154,6 +1154,9 @@ body {
 }
 
 .option-price {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
     padding: 6px 9px;
     border-radius: 999px;
     background: #fff;
@@ -1161,6 +1164,12 @@ body {
     font-size: 10px;
     font-weight: 700;
     white-space: nowrap;
+}
+
+.option-price small {
+    color: #8b9790;
+    font-size: 8px;
+    font-weight: 650;
 }
 
 @media (max-width: 700px) {
