@@ -114,6 +114,13 @@
         </div>
         {% endif %}
 
+        {% if dashboard_notice %}
+        <p class="dashboard-message success" role="status">{{ dashboard_notice }}</p>
+        {% endif %}
+        {% if dashboard_error %}
+        <p class="dashboard-message error" role="alert">{{ dashboard_error }}</p>
+        {% endif %}
+
         <section class="task-panel plan-workspace">
             <div class="task-panel-header plan-workspace-header">
                 <div>
@@ -144,28 +151,156 @@
                         <h3>Food overview</h3>
                         <p>Today’s nutrition and food-safety picture.</p>
                     </div>
-                    <span class="plan-setup-status">Not tracking yet</span>
+                    <span class="plan-setup-status">
+                        {% if food_log %}{{ food_log|length }} item{% if food_log|length != 1 %}s{% endif %} logged
+                        {% elif nutrition_profile %}Ready to log
+                        {% else %}Setup needed{% endif %}
+                    </span>
                 </div>
-                <div class="food-stat-grid">
-                    <section class="plan-stat-block">
-                        <span>Macronutrients</span>
-                        <strong>Nothing logged today</strong>
-                        <div class="macro-preview" aria-label="Macronutrient totals unavailable">
-                            <span>Protein <b>—</b></span>
-                            <span>Carbs <b>—</b></span>
-                            <span>Fat <b>—</b></span>
+
+                <div class="food-dashboard-grid">
+                    <div class="food-actions-column">
+                        <section class="food-add-section">
+                            <span class="plan-block-label">Add food</span>
+                            <form class="food-search-form" action="{{ url_for('recipe') }}" method="POST">
+                                <input type="search" name="ingredients"
+                                       placeholder="Search recipes by ingredients"
+                                       aria-label="Search recipes by ingredients" required>
+                                <button type="submit">Search</button>
+                            </form>
+
+                            <div class="saved-food-list">
+                                <div class="saved-food-heading">
+                                    <strong>Saved recipes</strong>
+                                    <a href="{{ url_for('my_ruby') }}">View all</a>
+                                </div>
+                                {% for recipe in saved_recipes[:3] %}
+                                <div class="saved-food-row">
+                                    <span>{{ recipe.title }}</span>
+                                    <form action="{{ url_for('log_saved_recipe', saved_recipe_id=recipe.id) }}" method="POST">
+                                        <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                        <button type="submit">Add to today</button>
+                                    </form>
+                                </div>
+                                {% else %}
+                                <p class="plan-empty-copy">
+                                    No saved recipes yet.
+                                    <a href="{{ url_for('recipe') }}">Find a recipe</a>
+                                </p>
+                                {% endfor %}
+                            </div>
+                        </section>
+
+                        {% if food_log %}
+                        <section class="today-food-log">
+                            <span class="plan-block-label">Logged today</span>
+                            {% for item in food_log %}
+                            <div>
+                                <span>{{ item.title }}</span>
+                                <small>{{ item.calories|round|int }} cal</small>
+                                <form action="{{ url_for('delete_food_log', food_log_id=item.id) }}" method="POST">
+                                    <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                    <button type="submit" aria-label="Remove {{ item.title }} from today">Remove</button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        </section>
+                        {% endif %}
+
+                        <details class="nutrition-profile" {% if not nutrition_profile %}open{% endif %}>
+                            <summary>
+                                {% if nutrition_profile %}Edit nutrition targets{% else %}Set up nutrition targets{% endif %}
+                            </summary>
+                            <form action="{{ url_for('save_nutrition_profile') }}" method="POST">
+                                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                <label>
+                                    <span>Age</span>
+                                    <input type="number" name="age" min="18" max="100"
+                                           value="{{ nutrition_profile.age if nutrition_profile else '' }}" required>
+                                </label>
+                                <label>
+                                    <span>Height (cm)</span>
+                                    <input type="number" name="height_cm" min="120" max="230" step="0.1"
+                                           value="{{ nutrition_profile.height_cm if nutrition_profile else '' }}" required>
+                                </label>
+                                <label>
+                                    <span>Weight (kg)</span>
+                                    <input type="number" name="weight_kg" min="35" max="350" step="0.1"
+                                           value="{{ nutrition_profile.weight_kg if nutrition_profile else '' }}" required>
+                                </label>
+                                <label>
+                                    <span>Sex used for estimate</span>
+                                    <select name="estimate_sex" required>
+                                        <option value="">Choose</option>
+                                        <option value="female" {% if nutrition_profile and nutrition_profile.estimate_sex == 'female' %}selected{% endif %}>Female</option>
+                                        <option value="male" {% if nutrition_profile and nutrition_profile.estimate_sex == 'male' %}selected{% endif %}>Male</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Activity</span>
+                                    <select name="activity_level" required>
+                                        <option value="">Choose</option>
+                                        <option value="sedentary" {% if nutrition_profile and nutrition_profile.activity_level == 'sedentary' %}selected{% endif %}>Mostly seated</option>
+                                        <option value="light" {% if nutrition_profile and nutrition_profile.activity_level == 'light' %}selected{% endif %}>Lightly active</option>
+                                        <option value="moderate" {% if nutrition_profile and nutrition_profile.activity_level == 'moderate' %}selected{% endif %}>Moderately active</option>
+                                        <option value="very_active" {% if nutrition_profile and nutrition_profile.activity_level == 'very_active' %}selected{% endif %}>Very active</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Manual calorie target (optional)</span>
+                                    <input type="number" name="manual_calorie_target" min="1000" max="6000"
+                                           value="{{ nutrition_profile.manual_calorie_target if nutrition_profile and nutrition_profile.manual_calorie_target else '' }}"
+                                           placeholder="Overrides estimate">
+                                </label>
+                                <button type="submit">Save targets</button>
+                            </form>
+                            <small>
+                                Ruby provides a rough adult maintenance estimate, not medical advice.
+                                A manual target always overrides it.
+                            </small>
+                        </details>
+                    </div>
+
+                    <aside class="nutrition-summary">
+                        <div class="calorie-ring"
+                             style="--calorie-progress: {{ (calorie_progress|default(0)) * 3.6 }}deg"
+                             aria-label="{{ nutrition_totals.calories|default(0)|round|int }} of {{ calorie_target|default(0) }} calories">
+                            <div>
+                                <strong>{{ nutrition_totals.calories|default(0)|round|int }}</strong>
+                                <span>{% if calorie_target %}of {{ calorie_target }} cal{% else %}calories{% endif %}</span>
+                            </div>
                         </div>
-                    </section>
-                    <section class="plan-stat-block">
-                        <span>Micronutrients</span>
-                        <strong>No intake data yet</strong>
-                        <p>Daily and weekly nutrient patterns will appear after meals are logged.</p>
-                    </section>
-                    <section class="plan-stat-block safety">
-                        <span>Food safety</span>
-                        <strong>Monitoring not set up</strong>
-                        <p>Recall matches will appear only after a specific product is saved.</p>
-                    </section>
+                        <section>
+                            <span class="plan-block-label">Macros</span>
+                            <div class="nutrition-stat-row">
+                                <span>Protein</span><strong>{{ nutrition_totals.protein_g|default(0) }} g</strong>
+                            </div>
+                            <div class="nutrition-stat-row">
+                                <span>Carbs</span><strong>{{ nutrition_totals.carbs_g|default(0) }} g</strong>
+                            </div>
+                            <div class="nutrition-stat-row">
+                                <span>Fat</span><strong>{{ nutrition_totals.fat_g|default(0) }} g</strong>
+                            </div>
+                        </section>
+                        <section>
+                            <span class="plan-block-label">Micronutrients</span>
+                            <div class="micro-grid">
+                                <span>Fiber <b>{{ nutrition_totals.fiber_g|default(0) }} g</b></span>
+                                <span>Calcium <b>{{ nutrition_totals.calcium_mg|default(0) }} mg</b></span>
+                                <span>Iron <b>{{ nutrition_totals.iron_mg|default(0) }} mg</b></span>
+                                <span>Potassium <b>{{ nutrition_totals.potassium_mg|default(0) }} mg</b></span>
+                                <span>Vitamin C <b>{{ nutrition_totals.vitamin_c_mg|default(0) }} mg</b></span>
+                                <span>Vitamin D <b>{{ nutrition_totals.vitamin_d_mcg|default(0) }} mcg</b></span>
+                            </div>
+                        </section>
+                        <section class="nutrition-safety-row">
+                            <div>
+                                <span class="plan-block-label">Food safety</span>
+                                <strong>Monitoring comes next</strong>
+                            </div>
+                            <p>Recall data will be matched to specific saved products, not generic meals.</p>
+                        </section>
+                    </aside>
                 </div>
             </div>
 

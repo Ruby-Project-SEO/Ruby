@@ -51,7 +51,7 @@ def search_recipes(ingredients):
 
   return response.json()
 
-def get_recipe_details(recipe_id):
+def get_recipe_details(recipe_id, include_nutrition=False):
   spoonacular_key = (os.getenv("SPOONACULAR_KEY") or '').strip()
 
   if not spoonacular_key:
@@ -62,8 +62,8 @@ def get_recipe_details(recipe_id):
   response = requests.get(
     url,
     params={
-      "apiKey": spoonacular_key,
-      "includeNutrition": False
+        "apiKey": spoonacular_key,
+        "includeNutrition": include_nutrition
     },
     timeout=10
   )

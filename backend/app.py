@@ -7,7 +7,7 @@ import requests
 import time
 import hashlib
 from collections import defaultdict, deque
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -254,6 +254,38 @@ def init_database():
                 UNIQUE(user_id, spoonacular_id)
             );
 
+            CREATE TABLE IF NOT EXISTS nutrition_profiles (
+                user_id TEXT PRIMARY KEY,
+                age INTEGER NOT NULL,
+                estimate_sex TEXT NOT NULL,
+                height_cm REAL NOT NULL,
+                weight_kg REAL NOT NULL,
+                activity_level TEXT NOT NULL,
+                estimated_calories INTEGER NOT NULL,
+                manual_calorie_target INTEGER,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS food_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                saved_recipe_id INTEGER,
+                title TEXT NOT NULL,
+                calories REAL NOT NULL DEFAULT 0,
+                protein_g REAL NOT NULL DEFAULT 0,
+                carbs_g REAL NOT NULL DEFAULT 0,
+                fat_g REAL NOT NULL DEFAULT 0,
+                fiber_g REAL NOT NULL DEFAULT 0,
+                calcium_mg REAL NOT NULL DEFAULT 0,
+                iron_mg REAL NOT NULL DEFAULT 0,
+                potassium_mg REAL NOT NULL DEFAULT 0,
+                vitamin_c_mg REAL NOT NULL DEFAULT 0,
+                vitamin_d_mcg REAL NOT NULL DEFAULT 0,
+                log_date TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (saved_recipe_id) REFERENCES saved_recipes(id)
+            );
+
         ''')
 
         response_columns = {
@@ -278,6 +310,43 @@ def add_activity(connection, user_id, description):
         (user_id, description)
     )
 
+ACTIVITY_MULTIPLIERS = {
+    'sedentary': 1.2,
+    'light': 1.375,
+    'moderate': 1.55,
+    'very_active': 1.725,
+}
+
+def estimate_maintenance_calories(age, estimate_sex, height_cm, weight_kg, activity_level):
+    sex_adjustment = 5 if estimate_sex == 'male' else -161
+    resting_energy = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) + sex_adjustment
+    return max(1, round(resting_energy * ACTIVITY_MULTIPLIERS[activity_level]))
+
+def recipe_nutrients(recipe):
+    nutrients = {
+        str(item.get('name', '')).lower(): item
+        for item in (recipe.get('nutrition') or {}).get('nutrients', [])
+    }
+
+    def amount(name):
+        try:
+            return max(0.0, float(nutrients.get(name.lower(), {}).get('amount', 0)))
+        except (TypeError, ValueError):
+            return 0.0
+
+    return {
+        'calories': amount('Calories'),
+        'protein_g': amount('Protein'),
+        'carbs_g': amount('Carbohydrates'),
+        'fat_g': amount('Fat'),
+        'fiber_g': amount('Fiber'),
+        'calcium_mg': amount('Calcium'),
+        'iron_mg': amount('Iron'),
+        'potassium_mg': amount('Potassium'),
+        'vitamin_c_mg': amount('Vitamin C'),
+        'vitamin_d_mcg': amount('Vitamin D'),
+    }
+
 init_database()
 
 def get_dashboard_context():
@@ -291,12 +360,55 @@ def get_dashboard_context():
             'DELETE FROM ruby_responses WHERE user_id = ?',
             (user_id,)
         )
+        nutrition_profile = connection.execute(
+            'SELECT * FROM nutrition_profiles WHERE user_id = ?',
+            (user_id,),
+        ).fetchone()
+        saved_recipes = connection.execute(
+            'SELECT * FROM saved_recipes WHERE user_id = ? ORDER BY id DESC',
+            (user_id,),
+        ).fetchall()
+        food_log = connection.execute(
+            '''
+            SELECT * FROM food_log
+            WHERE user_id = ? AND log_date = ?
+            ORDER BY id DESC
+            ''',
+            (user_id, date.today().isoformat()),
+        ).fetchall()
     ruby_response = session.pop('ruby_response', None)
     completed_count = sum(task['completed'] for task in tasks)
+    nutrition_totals = {
+        key: round(sum(float(item[key]) for item in food_log), 1)
+        for key in (
+            'calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g',
+            'calcium_mg', 'iron_mg', 'potassium_mg',
+            'vitamin_c_mg', 'vitamin_d_mcg',
+        )
+    }
+    calorie_target = 0
+    if nutrition_profile:
+        calorie_target = (
+            nutrition_profile['manual_calorie_target']
+            or nutrition_profile['estimated_calories']
+        )
+    calorie_progress = (
+        min(100, round(nutrition_totals['calories'] / calorie_target * 100))
+        if calorie_target else 0
+    )
     context = {
         'username': session.get('username'),
         'tasks': tasks,
-        'completed_count': completed_count
+        'completed_count': completed_count,
+        'nutrition_profile': nutrition_profile,
+        'nutrition_totals': nutrition_totals,
+        'calorie_target': calorie_target,
+        'calorie_progress': calorie_progress,
+        'saved_recipes': saved_recipes,
+        'food_log': food_log,
+        'auth_form_token': auth_form_token(),
+        'dashboard_notice': session.pop('dashboard_notice', None),
+        'dashboard_error': session.pop('dashboard_error', None),
     }
     if ruby_response:
         context.update(ruby_response)
@@ -695,6 +807,143 @@ def delete_task(task_id):
                 (task_id, user_id)
             )
             add_activity(connection, user_id, f'Deleted task: {task["title"]}')
+    return redirect(url_for('home'))
+
+@app.post('/nutrition/profile')
+def save_nutrition_profile():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+
+    try:
+        age = int(request.form.get('age', ''))
+        height_cm = float(request.form.get('height_cm', ''))
+        weight_kg = float(request.form.get('weight_kg', ''))
+        manual_value = request.form.get('manual_calorie_target', '').strip()
+        manual_target = int(manual_value) if manual_value else None
+    except (TypeError, ValueError):
+        session['dashboard_error'] = 'Enter valid numbers for your nutrition profile.'
+        return redirect(url_for('home'))
+
+    estimate_sex = request.form.get('estimate_sex', '').strip()
+    activity_level = request.form.get('activity_level', '').strip()
+    valid_profile = (
+        18 <= age <= 100
+        and 120 <= height_cm <= 230
+        and 35 <= weight_kg <= 350
+        and estimate_sex in {'male', 'female'}
+        and activity_level in ACTIVITY_MULTIPLIERS
+        and (manual_target is None or 1000 <= manual_target <= 6000)
+    )
+    if not valid_profile:
+        session['dashboard_error'] = (
+            'Check your profile values. Ruby currently supports adult estimates '
+            'and calorie targets from 1,000 to 6,000.'
+        )
+        return redirect(url_for('home'))
+
+    estimated_calories = estimate_maintenance_calories(
+        age, estimate_sex, height_cm, weight_kg, activity_level
+    )
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO nutrition_profiles (
+                user_id, age, estimate_sex, height_cm, weight_kg,
+                activity_level, estimated_calories, manual_calorie_target
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                age = excluded.age,
+                estimate_sex = excluded.estimate_sex,
+                height_cm = excluded.height_cm,
+                weight_kg = excluded.weight_kg,
+                activity_level = excluded.activity_level,
+                estimated_calories = excluded.estimated_calories,
+                manual_calorie_target = excluded.manual_calorie_target,
+                updated_at = CURRENT_TIMESTAMP
+            ''',
+            (
+                get_user_id(), age, estimate_sex, height_cm, weight_kg,
+                activity_level, estimated_calories, manual_target,
+            ),
+        )
+    session['dashboard_notice'] = 'Your nutrition targets were updated.'
+    return redirect(url_for('home'))
+
+@app.post('/nutrition/recipes/<int:saved_recipe_id>')
+def log_saved_recipe(saved_recipe_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+
+    user_id = get_user_id()
+    with get_database() as connection:
+        saved_recipe = connection.execute(
+            '''
+            SELECT * FROM saved_recipes
+            WHERE id = ? AND user_id = ?
+            ''',
+            (saved_recipe_id, user_id),
+        ).fetchone()
+    if not saved_recipe:
+        session['dashboard_error'] = 'That saved recipe could not be found.'
+        return redirect(url_for('home'))
+
+    try:
+        recipe = get_recipe_details(
+            saved_recipe['spoonacular_id'],
+            include_nutrition=True,
+        )
+        nutrients = recipe_nutrients(recipe)
+    except Exception:
+        app.logger.exception('Failed to load saved recipe nutrition')
+        session['dashboard_error'] = (
+            'Ruby could not load nutrition for that recipe right now.'
+        )
+        return redirect(url_for('home'))
+
+    if nutrients['calories'] <= 0:
+        session['dashboard_error'] = 'Nutrition data is unavailable for that recipe.'
+        return redirect(url_for('home'))
+
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO food_log (
+                user_id, saved_recipe_id, title, calories, protein_g,
+                carbs_g, fat_g, fiber_g, calcium_mg, iron_mg,
+                potassium_mg, vitamin_c_mg, vitamin_d_mcg, log_date
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                user_id,
+                saved_recipe_id,
+                saved_recipe['title'],
+                nutrients['calories'],
+                nutrients['protein_g'],
+                nutrients['carbs_g'],
+                nutrients['fat_g'],
+                nutrients['fiber_g'],
+                nutrients['calcium_mg'],
+                nutrients['iron_mg'],
+                nutrients['potassium_mg'],
+                nutrients['vitamin_c_mg'],
+                nutrients['vitamin_d_mcg'],
+                date.today().isoformat(),
+            ),
+        )
+    session['dashboard_notice'] = f"Added {saved_recipe['title']} to today."
+    return redirect(url_for('home'))
+
+@app.post('/nutrition/log/<int:food_log_id>/delete')
+def delete_food_log(food_log_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    with get_database() as connection:
+        connection.execute(
+            'DELETE FROM food_log WHERE id = ? AND user_id = ?',
+            (food_log_id, get_user_id()),
+        )
     return redirect(url_for('home'))
 
 @app.route('/recipe', methods=['GET', 'POST'])
