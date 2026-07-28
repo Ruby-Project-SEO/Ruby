@@ -2000,6 +2000,215 @@ body {
     font-weight: 650;
 }
 
+.open-food-search {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #bfd0c4;
+    border-radius: 10px;
+    background: #f8faf6;
+    color: #1f5138;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.open-food-search::after {
+    float: right;
+    content: "+";
+}
+
+.food-search-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: min(760px, calc(100vw - 32px));
+    max-height: min(760px, calc(100vh - 40px));
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 28px 90px rgba(8, 37, 25, .32);
+    color: #234b38;
+    transform: translate(-50%, -50%);
+}
+
+.food-search-dialog::backdrop {
+    background: rgba(12, 31, 22, .68);
+    backdrop-filter: blur(4px);
+}
+
+.food-dialog-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 24px 26px 18px;
+    border-bottom: 1px solid #e7ebe6;
+}
+
+.food-dialog-header h2 {
+    margin: 0 0 3px;
+    font: 600 28px "Cormorant Garamond", Georgia, serif;
+}
+
+.food-dialog-header p {
+    margin: 0;
+    color: #7b8982;
+    font-size: 11px;
+}
+
+.food-dialog-header > button,
+.change-selected-food {
+    align-self: flex-start;
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    color: #61766a;
+    font-size: 10px;
+    font-weight: 650;
+}
+
+#food-search-step,
+.food-amount-form {
+    max-height: calc(100vh - 160px);
+    padding: 22px 26px 26px;
+    overflow-y: auto;
+}
+
+.modal-food-search {
+    display: grid;
+    gap: 6px;
+}
+
+.modal-food-search > span,
+.food-amount-fields label > span,
+.selected-food-copy > span {
+    color: #718078;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.modal-food-search input {
+    padding: 13px 14px;
+    border: 1px solid #cfd9d1;
+    border-radius: 10px;
+    outline: 0;
+    color: #244a37;
+    font-size: 13px;
+}
+
+.modal-food-search input:focus {
+    border-color: #759b84;
+    box-shadow: 0 0 0 3px rgba(117, 155, 132, .12);
+}
+
+.food-search-status {
+    margin: 9px 0 5px;
+    color: #829087;
+    font-size: 10px;
+}
+
+.usda-food-results {
+    border-top: 1px solid #edf0ec;
+}
+
+.usda-food-result {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    width: 100%;
+    padding: 13px 4px;
+    border: 0;
+    border-bottom: 1px solid #edf0ec;
+    background: transparent;
+    color: #315844;
+    text-align: left;
+}
+
+.usda-food-result:hover,
+.usda-food-result:focus {
+    background: #f6f9f5;
+}
+
+.usda-food-result > span:first-child {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.usda-food-result strong {
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.usda-food-result small,
+.usda-food-result > span:last-child {
+    color: #829087;
+    font-size: 9px;
+}
+
+.selected-food-copy {
+    margin: 16px 0 20px;
+    padding: 16px;
+    border-radius: 11px;
+    background: #f2f6f1;
+}
+
+.selected-food-copy h3 {
+    margin: 4px 0 2px;
+    font-size: 15px;
+}
+
+.selected-food-copy p {
+    margin: 0;
+    color: #718078;
+    font-size: 10px;
+}
+
+.food-amount-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.food-amount-fields label {
+    display: grid;
+    gap: 5px;
+}
+
+.food-amount-fields input,
+.food-amount-fields select {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid #cfd9d1;
+    border-radius: 9px;
+    background: #fff;
+    color: #315844;
+    font-size: 11px;
+}
+
+.selected-serving-note {
+    margin: 9px 0 18px;
+    color: #7b8982;
+    font-size: 10px;
+}
+
+.confirm-food-add {
+    width: 100%;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: 10px;
+    background: #075737;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
 .saved-food-list,
 .today-food-log,
 .nutrition-profile {
@@ -2612,6 +2821,17 @@ body {
     }
 
     .nutrition-profile form {
+        grid-template-columns: 1fr;
+    }
+
+    .food-dialog-header,
+    #food-search-step,
+    .food-amount-form {
+        padding-right: 18px;
+        padding-left: 18px;
+    }
+
+    .food-amount-fields {
         grid-template-columns: 1fr;
     }
 

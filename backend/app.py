@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from flask import Flask, render_template, url_for, redirect, request, session
+from flask import Flask, jsonify, render_template, url_for, redirect, request, session
 from flask_behind_proxy import FlaskBehindProxy
 from google import genai
 from google.genai import errors, types
@@ -28,6 +28,11 @@ from backend.services.wellness import (
     search_recipes,
     select_item,
     show_db,
+)
+from backend.services.nutrition import (
+    food_log_values,
+    get_usda_food,
+    search_usda_foods,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +57,7 @@ GOOGLE_CLIENT_ID = os.environ.get(
     '725724612296-hc0jlt97b7a1bs5svmobbdo7o6p101sv.apps.googleusercontent.com',
 )
 LOGIN_ATTEMPTS = defaultdict(deque)
+FOOD_SEARCH_ATTEMPTS = defaultdict(deque)
 
 DATABASE_ROOT.mkdir(parents=True, exist_ok=True)
 if not DATABASE.exists() and LEGACY_DATABASE.exists():
@@ -109,6 +115,16 @@ def login_rate_limited():
     while attempts and attempts[0] < now - 900:
         attempts.popleft()
     if len(attempts) >= 8:
+        return True
+    attempts.append(now)
+    return False
+
+def food_search_rate_limited():
+    now = time.monotonic()
+    attempts = FOOD_SEARCH_ATTEMPTS[client_ip()]
+    while attempts and attempts[0] < now - 60:
+        attempts.popleft()
+    if len(attempts) >= 30:
         return True
     attempts.append(now)
     return False
@@ -270,7 +286,9 @@ def init_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
                 saved_recipe_id INTEGER,
+                fdc_id INTEGER,
                 title TEXT NOT NULL,
+                amount_grams REAL,
                 calories REAL NOT NULL DEFAULT 0,
                 protein_g REAL NOT NULL DEFAULT 0,
                 carbs_g REAL NOT NULL DEFAULT 0,
@@ -298,6 +316,14 @@ def init_database():
                 ADD COLUMN ranking TEXT NOT NULL DEFAULT '["food", "drugs", "cosmetics"]'
                 '''
             )
+
+        food_log_columns = {
+            row['name'] for row in connection.execute('PRAGMA table_info(food_log)')
+        }
+        if 'fdc_id' not in food_log_columns:
+            connection.execute('ALTER TABLE food_log ADD COLUMN fdc_id INTEGER')
+        if 'amount_grams' not in food_log_columns:
+            connection.execute('ALTER TABLE food_log ADD COLUMN amount_grams REAL')
 
 def get_user_id():
     if 'user_id' not in session:
@@ -933,6 +959,74 @@ def log_saved_recipe(saved_recipe_id):
             ),
         )
     session['dashboard_notice'] = f"Added {saved_recipe['title']} to today."
+    return redirect(url_for('home'))
+
+@app.get('/api/nutrition/foods')
+def search_nutrition_foods():
+    if not session.get('username'):
+        return jsonify({'error': 'Authentication required'}), 401
+    query = request.args.get('q', '').strip()[:80]
+    if len(query) < 2:
+        return jsonify({'results': []})
+    if food_search_rate_limited():
+        return jsonify({'error': 'Too many searches. Please wait a minute.'}), 429
+    try:
+        return jsonify({'results': search_usda_foods(query)})
+    except requests.RequestException:
+        app.logger.exception('USDA food search failed')
+        return jsonify({'error': 'Food search is temporarily unavailable.'}), 502
+
+@app.post('/nutrition/foods')
+def log_usda_food():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    try:
+        fdc_id = int(request.form.get('fdc_id', ''))
+        amount = float(request.form.get('amount', ''))
+        unit = request.form.get('unit', 'grams')
+        if unit not in {'grams', 'serving'}:
+            raise ValueError('Choose grams or servings.')
+        food = get_usda_food(fdc_id)
+        values = food_log_values(food, amount, unit)
+    except (TypeError, ValueError):
+        session['dashboard_error'] = 'Choose a food and enter a valid amount.'
+        return redirect(url_for('home'))
+    except requests.RequestException:
+        app.logger.exception('USDA food details failed')
+        session['dashboard_error'] = (
+            'Ruby could not load that food’s nutrition right now.'
+        )
+        return redirect(url_for('home'))
+
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO food_log (
+                user_id, fdc_id, title, amount_grams, calories, protein_g,
+                carbs_g, fat_g, fiber_g, calcium_mg, iron_mg,
+                potassium_mg, vitamin_c_mg, vitamin_d_mcg, log_date
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                get_user_id(),
+                fdc_id,
+                values['title'],
+                values['amount_grams'],
+                values['calories'],
+                values['protein_g'],
+                values['carbs_g'],
+                values['fat_g'],
+                values['fiber_g'],
+                values['calcium_mg'],
+                values['iron_mg'],
+                values['potassium_mg'],
+                values['vitamin_c_mg'],
+                values['vitamin_d_mcg'],
+                date.today().isoformat(),
+            ),
+        )
+    session['dashboard_notice'] = f"Added {values['title']} to today."
     return redirect(url_for('home'))
 
 @app.post('/nutrition/log/<int:food_log_id>/delete')

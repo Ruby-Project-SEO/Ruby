@@ -162,12 +162,9 @@
                     <div class="food-actions-column">
                         <section class="food-add-section">
                             <span class="plan-block-label">Add food</span>
-                            <form class="food-search-form" action="{{ url_for('recipe') }}" method="POST">
-                                <input type="search" name="ingredients"
-                                       placeholder="Search recipes by ingredients"
-                                       aria-label="Search recipes by ingredients" required>
-                                <button type="submit">Search</button>
-                            </form>
+                            <button id="open-food-search" class="open-food-search" type="button">
+                                Search and add food
+                            </button>
 
                             <div class="saved-food-list">
                                 <div class="saved-food-heading">
@@ -350,6 +347,60 @@
                 </div>
             </div>
         </section>
+
+        <dialog id="food-search-dialog" class="food-search-dialog">
+            <div class="food-dialog-header">
+                <div>
+                    <span class="dashboard-section-label">Add food</span>
+                    <h2>What did you eat?</h2>
+                    <p>Search verified USDA nutrition data, then enter your amount.</p>
+                </div>
+                <button id="close-food-search" type="button" aria-label="Close food search">Close</button>
+            </div>
+
+            <div id="food-search-step">
+                <label class="modal-food-search">
+                    <span>Search foods</span>
+                    <input id="usda-food-query" type="search"
+                           placeholder="Try chicken breast, rice, yogurt..."
+                           autocomplete="off">
+                </label>
+                <p id="food-search-status" class="food-search-status">
+                    Enter at least two letters to search.
+                </p>
+                <div id="usda-food-results" class="usda-food-results" role="listbox"></div>
+            </div>
+
+            <form id="food-amount-form" class="food-amount-form"
+                  action="{{ url_for('log_usda_food') }}" method="POST" hidden>
+                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                <input id="selected-fdc-id" type="hidden" name="fdc_id">
+                <button id="change-selected-food" class="change-selected-food" type="button">
+                    Back to results
+                </button>
+                <div class="selected-food-copy">
+                    <span>Selected food</span>
+                    <h3 id="selected-food-name"></h3>
+                    <p id="selected-food-brand"></p>
+                </div>
+                <div class="food-amount-fields">
+                    <label>
+                        <span>Amount</span>
+                        <input id="food-amount" type="number" name="amount"
+                               min="0.1" max="5000" step="0.1" required>
+                    </label>
+                    <label>
+                        <span>Measure</span>
+                        <select id="food-unit" name="unit">
+                            <option value="grams">grams</option>
+                            <option id="food-serving-option" value="serving">servings</option>
+                        </select>
+                    </label>
+                </div>
+                <p id="selected-serving-note" class="selected-serving-note"></p>
+                <button class="confirm-food-add" type="submit">Add to today</button>
+            </form>
+        </dialog>
     </div>
 </section>
 <script>
@@ -438,6 +489,111 @@
                 panel.hidden = panel.id !== tab.dataset.planTab;
             });
         });
+    });
+
+    const foodDialog = document.getElementById('food-search-dialog');
+    const openFoodSearch = document.getElementById('open-food-search');
+    const closeFoodSearch = document.getElementById('close-food-search');
+    const foodSearchStep = document.getElementById('food-search-step');
+    const foodAmountForm = document.getElementById('food-amount-form');
+    const foodQuery = document.getElementById('usda-food-query');
+    const foodResults = document.getElementById('usda-food-results');
+    const foodSearchStatus = document.getElementById('food-search-status');
+    const selectedFdcId = document.getElementById('selected-fdc-id');
+    const selectedFoodName = document.getElementById('selected-food-name');
+    const selectedFoodBrand = document.getElementById('selected-food-brand');
+    const foodAmount = document.getElementById('food-amount');
+    const foodUnit = document.getElementById('food-unit');
+    const foodServingOption = document.getElementById('food-serving-option');
+    const selectedServingNote = document.getElementById('selected-serving-note');
+    const changeSelectedFood = document.getElementById('change-selected-food');
+    let foodSearchTimer;
+    let selectedServingGrams = null;
+
+    const showFoodSearch = () => {
+        foodSearchStep.hidden = false;
+        foodAmountForm.hidden = true;
+        window.setTimeout(() => foodQuery.focus(), 50);
+    };
+
+    openFoodSearch.addEventListener('click', () => {
+        foodDialog.showModal();
+        showFoodSearch();
+    });
+
+    closeFoodSearch.addEventListener('click', () => foodDialog.close());
+    changeSelectedFood.addEventListener('click', showFoodSearch);
+
+    const selectFood = (food) => {
+        selectedFdcId.value = food.fdc_id;
+        selectedFoodName.textContent = food.name;
+        selectedFoodBrand.textContent = food.brand || 'USDA food record';
+        selectedServingGrams = food.serving_grams;
+        foodServingOption.disabled = !selectedServingGrams;
+        foodUnit.value = selectedServingGrams ? 'serving' : 'grams';
+        foodAmount.value = selectedServingGrams ? '1' : '100';
+        selectedServingNote.textContent = selectedServingGrams
+            ? `1 serving is approximately ${selectedServingGrams} g (${food.serving_label}).`
+            : 'This food is measured in grams.';
+        foodSearchStep.hidden = true;
+        foodAmountForm.hidden = false;
+    };
+
+    const renderFoodResults = (foods) => {
+        foodResults.replaceChildren();
+        foods.forEach((food) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'usda-food-result';
+            button.setAttribute('role', 'option');
+
+            const copy = document.createElement('span');
+            const name = document.createElement('strong');
+            const detail = document.createElement('small');
+            name.textContent = food.name;
+            detail.textContent = [food.brand, food.serving_label].filter(Boolean).join(' · ');
+            copy.append(name, detail);
+
+            const addLabel = document.createElement('span');
+            addLabel.textContent = 'Choose';
+            button.append(copy, addLabel);
+            button.addEventListener('click', () => selectFood(food));
+            foodResults.append(button);
+        });
+    };
+
+    foodQuery.addEventListener('input', () => {
+        window.clearTimeout(foodSearchTimer);
+        const query = foodQuery.value.trim();
+        foodResults.replaceChildren();
+        if (query.length < 2) {
+            foodSearchStatus.textContent = 'Enter at least two letters to search.';
+            return;
+        }
+        foodSearchStatus.textContent = 'Searching…';
+        foodSearchTimer = window.setTimeout(async () => {
+            try {
+                const response = await fetch(`/api/nutrition/foods?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Search failed');
+                renderFoodResults(data.results);
+                foodSearchStatus.textContent = data.results.length
+                    ? `${data.results.length} foods found`
+                    : 'No matching foods found.';
+            } catch (error) {
+                foodSearchStatus.textContent = error.message;
+            }
+        }, 350);
+    });
+
+    foodUnit.addEventListener('change', () => {
+        if (foodUnit.value === 'serving') {
+            foodAmount.value = '1';
+            selectedServingNote.textContent = `1 serving is approximately ${selectedServingGrams} g.`;
+        } else {
+            foodAmount.value = selectedServingGrams || '100';
+            selectedServingNote.textContent = 'Enter the amount you ate in grams.';
+        }
     });
 
     document.querySelectorAll('.task-row').forEach((taskRow) => {
