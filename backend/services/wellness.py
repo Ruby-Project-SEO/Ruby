@@ -8,11 +8,13 @@ from pathlib import Path
 from google import genai
 
 
-my_api_key = os.getenv('GENAI_KEY')
 spoonacular_key = (os.getenv('SPOONACULAR_KEY') or '').strip()
 
-
-client = genai.Client(api_key=my_api_key)
+def get_genai_client():
+  api_key = os.getenv('GEMINI_API_KEY') or os.getenv('GENAI_KEY')
+  if not api_key:
+    raise RuntimeError('GEMINI_API_KEY or GENAI_KEY is not configured')
+  return genai.Client(api_key=api_key)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATABASE_ROOT = PROJECT_ROOT / "database"
@@ -51,7 +53,7 @@ def search_recipes(ingredients):
 
   return response.json()
 
-def get_recipe_details(recipe_id):
+def get_recipe_details(recipe_id, include_nutrition=False):
   spoonacular_key = (os.getenv("SPOONACULAR_KEY") or '').strip()
 
   if not spoonacular_key:
@@ -62,8 +64,8 @@ def get_recipe_details(recipe_id):
   response = requests.get(
     url,
     params={
-      "apiKey": spoonacular_key,
-      "includeNutrition": False
+        "apiKey": spoonacular_key,
+        "includeNutrition": include_nutrition
     },
     timeout=10
   )
@@ -239,7 +241,7 @@ def generate_food_remedies(issue):
   Issue: {issue}
   """
 
-  resp = client.models.generate_content(
+  resp = get_genai_client().models.generate_content(
       model="gemini-3.5-flash",
       contents=prompt
   )
@@ -278,7 +280,7 @@ def generate_drug_remedies(issue):
   Issue: {issue}
   """
 
-  resp = client.models.generate_content(
+  resp = get_genai_client().models.generate_content(
       model="gemini-3.5-flash",
       contents=prompt
   )
@@ -306,7 +308,7 @@ def generate_cosmetic_remedies(issue):
   Issue: {issue}
   """
 
-  resp = client.models.generate_content(
+  resp = get_genai_client().models.generate_content(
       model="gemini-3.5-flash",
       contents=prompt
   )
@@ -334,7 +336,7 @@ def generate_price(items):
   Item: {", ".join(items)}
   """
 
-  resp = client.models.generate_content(
+  resp = get_genai_client().models.generate_content(
       model="gemini-3.5-flash",
       contents=prompt
   )
@@ -391,7 +393,7 @@ Include exactly one blank line between the two drugs.
 Do not place blank lines inside either drug section.
 """
 
-    resp = client.models.generate_content(
+    resp = get_genai_client().models.generate_content(
         model="gemini-3.5-flash",
         contents=prompt
     )

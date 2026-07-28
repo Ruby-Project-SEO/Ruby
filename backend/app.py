@@ -1,5 +1,6 @@
 import os
 import git
+import json
 import secrets
 import shutil
 import sqlite3
@@ -7,27 +8,41 @@ import requests
 import time
 import hashlib
 from collections import defaultdict, deque
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from flask import Flask, render_template, url_for, redirect, request, session
+from dotenv import load_dotenv
+from flask import Flask, jsonify, render_template, url_for, redirect, request, session
 from flask_behind_proxy import FlaskBehindProxy
 from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel, Field
+
+ENV_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(ENV_PROJECT_ROOT / '.env')
+
 from backend.services.wellness import (
     delete_saved,
-    generate_cosmetic_remedies,
     generate_drug_comparison,
-    generate_drug_remedies,
-    generate_food_remedies,
     get_link,
     get_recipe_details,
+    search_food,
     search_recipes,
     select_item,
     show_db,
+)
+from backend.services.nutrition import (
+    food_log_values,
+    get_usda_food,
+    search_usda_foods,
+)
+from backend.services.products import (
+    cosmetic_safety_note,
+    medication_safety_note,
+    search_cosmetics,
+    search_medications,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +67,7 @@ GOOGLE_CLIENT_ID = os.environ.get(
     '725724612296-hc0jlt97b7a1bs5svmobbdo7o6p101sv.apps.googleusercontent.com',
 )
 LOGIN_ATTEMPTS = defaultdict(deque)
+FOOD_SEARCH_ATTEMPTS = defaultdict(deque)
 
 DATABASE_ROOT.mkdir(parents=True, exist_ok=True)
 if not DATABASE.exists() and LEGACY_DATABASE.exists():
@@ -66,6 +82,23 @@ class RubyGuidance(BaseModel):
         min_length=3,
         max_length=3,
         description='Food, drugs, and cosmetics ranked from most to least relevant, each exactly once.'
+    )
+    suggested_search_terms: list[str] = Field(
+        default_factory=list,
+        max_length=6,
+        description=(
+            'Up to six short, non-diagnostic product or ingredient search terms '
+            'for the highest-ranked category.'
+        ),
+    )
+    estimated_prices_usd: list[float] = Field(
+        default_factory=list,
+        max_length=6,
+        description=(
+            'A rough typical US retail price estimate corresponding by index '
+            'to each suggested search term. Use 0 when a responsible estimate '
+            'is unavailable.'
+        ),
     )
 
 class RoutineStep(BaseModel):
@@ -109,6 +142,16 @@ def login_rate_limited():
     while attempts and attempts[0] < now - 900:
         attempts.popleft()
     if len(attempts) >= 8:
+        return True
+    attempts.append(now)
+    return False
+
+def food_search_rate_limited():
+    now = time.monotonic()
+    attempts = FOOD_SEARCH_ATTEMPTS[client_ip()]
+    while attempts and attempts[0] < now - 60:
+        attempts.popleft()
+    if len(attempts) >= 30:
         return True
     attempts.append(now)
     return False
@@ -254,6 +297,95 @@ def init_database():
                 UNIQUE(user_id, spoonacular_id)
             );
 
+            CREATE TABLE IF NOT EXISTS nutrition_profiles (
+                user_id TEXT PRIMARY KEY,
+                age INTEGER NOT NULL,
+                estimate_sex TEXT NOT NULL,
+                height_cm REAL NOT NULL,
+                weight_kg REAL NOT NULL,
+                activity_level TEXT NOT NULL,
+                estimated_calories INTEGER NOT NULL,
+                manual_calorie_target INTEGER,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS food_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                saved_recipe_id INTEGER,
+                fdc_id INTEGER,
+                title TEXT NOT NULL,
+                amount_grams REAL,
+                calories REAL NOT NULL DEFAULT 0,
+                protein_g REAL NOT NULL DEFAULT 0,
+                carbs_g REAL NOT NULL DEFAULT 0,
+                fat_g REAL NOT NULL DEFAULT 0,
+                fiber_g REAL NOT NULL DEFAULT 0,
+                calcium_mg REAL NOT NULL DEFAULT 0,
+                iron_mg REAL NOT NULL DEFAULT 0,
+                potassium_mg REAL NOT NULL DEFAULT 0,
+                vitamin_c_mg REAL NOT NULL DEFAULT 0,
+                vitamin_d_mcg REAL NOT NULL DEFAULT 0,
+                log_date TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (saved_recipe_id) REFERENCES saved_recipes(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS water_log (
+                user_id TEXT NOT NULL,
+                log_date TEXT NOT NULL,
+                amount_ml INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, log_date)
+            );
+
+            CREATE TABLE IF NOT EXISTS medications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                rxcui TEXT,
+                name TEXT NOT NULL,
+                labeler TEXT,
+                logo_url TEXT,
+                strength TEXT,
+                schedule_time TEXT NOT NULL,
+                schedule_times TEXT,
+                start_date TEXT,
+                end_date TEXT,
+                safety_note TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS cosmetic_routine (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                product_code TEXT,
+                name TEXT NOT NULL,
+                brand TEXT,
+                image_url TEXT,
+                logo_url TEXT,
+                routine_time TEXT NOT NULL,
+                safety_note TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS medication_doses (
+                medication_id INTEGER NOT NULL,
+                user_id TEXT NOT NULL,
+                dose_date TEXT NOT NULL,
+                taken_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (medication_id, user_id, dose_date),
+                FOREIGN KEY (medication_id) REFERENCES medications(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS medication_dose_events (
+                medication_id INTEGER NOT NULL,
+                user_id TEXT NOT NULL,
+                dose_date TEXT NOT NULL,
+                schedule_time TEXT NOT NULL,
+                taken_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (medication_id, user_id, dose_date, schedule_time),
+                FOREIGN KEY (medication_id) REFERENCES medications(id)
+            );
+
         ''')
 
         response_columns = {
@@ -267,6 +399,34 @@ def init_database():
                 '''
             )
 
+        food_log_columns = {
+            row['name'] for row in connection.execute('PRAGMA table_info(food_log)')
+        }
+        if 'fdc_id' not in food_log_columns:
+            connection.execute('ALTER TABLE food_log ADD COLUMN fdc_id INTEGER')
+        if 'amount_grams' not in food_log_columns:
+            connection.execute('ALTER TABLE food_log ADD COLUMN amount_grams REAL')
+        medication_columns = {
+            row['name'] for row in connection.execute('PRAGMA table_info(medications)')
+        }
+        if 'labeler' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN labeler TEXT')
+        if 'logo_url' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN logo_url TEXT')
+        if 'schedule_times' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN schedule_times TEXT')
+        if 'start_date' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN start_date TEXT')
+        if 'end_date' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN end_date TEXT')
+        connection.execute(
+            '''
+            UPDATE medications
+            SET schedule_times = '["' || schedule_time || '"]'
+            WHERE schedule_times IS NULL OR schedule_times = ''
+            '''
+        )
+
 def get_user_id():
     if 'user_id' not in session:
         session['user_id'] = uuid4().hex
@@ -277,6 +437,43 @@ def add_activity(connection, user_id, description):
         'INSERT INTO activities (user_id, description) VALUES (?, ?)',
         (user_id, description)
     )
+
+ACTIVITY_MULTIPLIERS = {
+    'sedentary': 1.2,
+    'light': 1.375,
+    'moderate': 1.55,
+    'very_active': 1.725,
+}
+
+def estimate_maintenance_calories(age, estimate_sex, height_cm, weight_kg, activity_level):
+    sex_adjustment = 5 if estimate_sex == 'male' else -161
+    resting_energy = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) + sex_adjustment
+    return max(1, round(resting_energy * ACTIVITY_MULTIPLIERS[activity_level]))
+
+def recipe_nutrients(recipe):
+    nutrients = {
+        str(item.get('name', '')).lower(): item
+        for item in (recipe.get('nutrition') or {}).get('nutrients', [])
+    }
+
+    def amount(name):
+        try:
+            return max(0.0, float(nutrients.get(name.lower(), {}).get('amount', 0)))
+        except (TypeError, ValueError):
+            return 0.0
+
+    return {
+        'calories': amount('Calories'),
+        'protein_g': amount('Protein'),
+        'carbs_g': amount('Carbohydrates'),
+        'fat_g': amount('Fat'),
+        'fiber_g': amount('Fiber'),
+        'calcium_mg': amount('Calcium'),
+        'iron_mg': amount('Iron'),
+        'potassium_mg': amount('Potassium'),
+        'vitamin_c_mg': amount('Vitamin C'),
+        'vitamin_d_mcg': amount('Vitamin D'),
+    }
 
 init_database()
 
@@ -291,12 +488,135 @@ def get_dashboard_context():
             'DELETE FROM ruby_responses WHERE user_id = ?',
             (user_id,)
         )
-    ruby_response = session.pop('ruby_response', None)
+        nutrition_profile = connection.execute(
+            'SELECT * FROM nutrition_profiles WHERE user_id = ?',
+            (user_id,),
+        ).fetchone()
+        saved_recipes = connection.execute(
+            'SELECT * FROM saved_recipes WHERE user_id = ? ORDER BY id DESC',
+            (user_id,),
+        ).fetchall()
+        food_log = connection.execute(
+            '''
+            SELECT * FROM food_log
+            WHERE user_id = ? AND log_date = ?
+            ORDER BY id DESC
+            ''',
+            (user_id, date.today().isoformat()),
+        ).fetchall()
+        water_row = connection.execute(
+            '''
+            SELECT amount_ml FROM water_log
+            WHERE user_id = ? AND log_date = ?
+            ''',
+            (user_id, date.today().isoformat()),
+        ).fetchone()
+        medication_rows = connection.execute(
+            '''
+            SELECT * FROM medications
+            WHERE user_id = ?
+            ORDER BY medications.schedule_time, medications.id
+            ''',
+            (user_id,),
+        ).fetchall()
+        dose_events = connection.execute(
+            '''
+            SELECT medication_id, schedule_time, taken_at
+            FROM medication_dose_events
+            WHERE user_id = ? AND dose_date = ?
+            ''',
+            (user_id, date.today().isoformat()),
+        ).fetchall()
+        cosmetics = connection.execute(
+            '''
+            SELECT * FROM cosmetic_routine
+            WHERE user_id = ?
+            ORDER BY CASE routine_time
+                WHEN 'morning' THEN 1
+                WHEN 'afternoon' THEN 2
+                ELSE 3 END, id
+            ''',
+            (user_id,),
+        ).fetchall()
+    current_date = date.today().isoformat()
+    current_time = datetime.now().strftime('%H:%M')
+    taken_doses = {
+        (row['medication_id'], row['schedule_time']): row['taken_at']
+        for row in dose_events
+    }
+    medications = []
+    for row in medication_rows:
+        medication = dict(row)
+        try:
+            schedule_times = json.loads(medication['schedule_times'] or '[]')
+        except (TypeError, ValueError):
+            schedule_times = []
+        if not schedule_times:
+            schedule_times = [medication['schedule_time']]
+        medication['schedule_times_list'] = schedule_times
+        medication['is_active'] = (
+            (not medication['start_date'] or medication['start_date'] <= current_date)
+            and (not medication['end_date'] or medication['end_date'] >= current_date)
+        )
+        medication['doses'] = []
+        for scheduled_time in schedule_times:
+            taken_at = taken_doses.get((medication['id'], scheduled_time))
+            if not medication['is_active']:
+                dose_status = 'inactive'
+            elif taken_at:
+                dose_status = 'taken'
+            elif scheduled_time <= current_time:
+                dose_status = 'due'
+            else:
+                dose_status = 'upcoming'
+            medication['doses'].append({
+                'schedule_time': scheduled_time,
+                'taken_at': taken_at,
+                'dose_status': dose_status,
+            })
+        medications.append(medication)
+    ruby_response = session.get('ruby_response')
     completed_count = sum(task['completed'] for task in tasks)
+    nutrition_totals = {
+        key: round(sum(float(item[key]) for item in food_log), 1)
+        for key in (
+            'calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g',
+            'calcium_mg', 'iron_mg', 'potassium_mg',
+            'vitamin_c_mg', 'vitamin_d_mcg',
+        )
+    }
+    calorie_target = 0
+    if nutrition_profile:
+        calorie_target = (
+            nutrition_profile['manual_calorie_target']
+            or nutrition_profile['estimated_calories']
+        )
+    calorie_progress = (
+        min(100, round(nutrition_totals['calories'] / calorie_target * 100))
+        if calorie_target else 0
+    )
+    water_goal_ml = 2500
+    water_amount_ml = water_row['amount_ml'] if water_row else 0
+    water_progress = min(100, round(water_amount_ml / water_goal_ml * 100))
     context = {
         'username': session.get('username'),
         'tasks': tasks,
-        'completed_count': completed_count
+        'completed_count': completed_count,
+        'nutrition_profile': nutrition_profile,
+        'nutrition_totals': nutrition_totals,
+        'calorie_target': calorie_target,
+        'calorie_progress': calorie_progress,
+        'water_amount_ml': water_amount_ml,
+        'water_goal_ml': water_goal_ml,
+        'water_progress': water_progress,
+        'medications': medications,
+        'cosmetics': cosmetics,
+        'active_plan': session.pop('dashboard_active_plan', 'food-plan'),
+        'saved_recipes': saved_recipes,
+        'food_log': food_log,
+        'auth_form_token': auth_form_token(),
+        'dashboard_notice': session.pop('dashboard_notice', None),
+        'dashboard_error': session.pop('dashboard_error', None),
     }
     if ruby_response:
         context.update(ruby_response)
@@ -334,7 +654,15 @@ def generate_ruby_answer(client, model, question):
                 'Use plain text without Markdown and keep responses under 180 words. '
                 'Rank food, drugs, and cosmetics by which information section is most relevant to explore next. '
                 'Food means nutrition and recipes, drugs means medication information, and cosmetics means skincare or personal care. '
-                'The ranking is navigation guidance, not a recommendation to take medication or buy a product.'
+                'The ranking is navigation guidance, not a recommendation to take medication or buy a product. '
+                'Also provide up to six short search terms for the highest-ranked category. '
+                'For cosmetics, use common product types or ingredients. '
+                'For food, use common foods or ingredients. '
+                'For drugs, only use a medication name when the user explicitly names that medication; '
+                'otherwise leave suggested_search_terms empty rather than recommending a drug for symptoms. '
+                'For each suggested search term, provide one rough typical US retail price in '
+                'estimated_prices_usd in the same order. Use 0 if a responsible estimate is unavailable. '
+                'Do not make a separate tool call for prices.'
             ),
             thinking_config=types.ThinkingConfig(thinking_level='minimal'),
             max_output_tokens=800,
@@ -343,6 +671,51 @@ def generate_ruby_answer(client, model, question):
         )
     )
     return RubyGuidance.model_validate_json(response.text)
+
+
+def ruby_category_options(category, search_terms, estimated_prices=None):
+    options = []
+    estimated_prices = estimated_prices or []
+    for index, term in enumerate(search_terms[:6]):
+        clean_term = str(term).strip()[:80]
+        if not clean_term:
+            continue
+        try:
+            estimated_price = max(0.0, float(estimated_prices[index]))
+        except (IndexError, TypeError, ValueError):
+            estimated_price = 0.0
+        display_price = estimated_price if estimated_price > 0 else 'N/A'
+        try:
+            if category == 'food':
+                matches = search_food(clean_term, display_price) or []
+                for match in matches:
+                    match['PriceEstimated'] = estimated_price > 0
+                options.extend(matches[:1])
+            elif category == 'drugs':
+                matches = search_medications(clean_term, 1)
+                if matches:
+                    match = matches[0]
+                    options.append({
+                        'Drug': match['name'],
+                        'Price': display_price,
+                        'PriceEstimated': estimated_price > 0,
+                        'Image': match.get('logo_url'),
+                        'Detail': match.get('labeler') or match.get('generic_name'),
+                    })
+            elif category == 'cosmetics':
+                matches = search_cosmetics(clean_term, 1)
+                if matches:
+                    match = matches[0]
+                    options.append({
+                        'Cosmetic': match['name'],
+                        'Price': display_price,
+                        'PriceEstimated': estimated_price > 0,
+                        'Image': match.get('image_url') or match.get('logo_url'),
+                        'Detail': match.get('brand'),
+                    })
+        except (requests.RequestException, RuntimeError, ValueError):
+            app.logger.info('No %s option found for %s', category, clean_term)
+    return options[:6]
 
 def generate_routine_answer(client, model, product_name):
     response = client.models.generate_content(
@@ -575,13 +948,13 @@ def register():
 def ask_ruby():
     question = request.form.get('question', '').strip()[:1000]
     if not question:
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
 
     api_key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GENAI_KEY')
     if not api_key:
         session['ruby_error'] = 'Gemini is not configured. Set GEMINI_API_KEY and try again.'
         session['ruby_error_question'] = question
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
 
     try:
         client = genai.Client(api_key=api_key)
@@ -599,12 +972,11 @@ def ask_ruby():
             ranking.extend(category for category in ('food', 'drugs', 'cosmetics') if category not in ranking)
             answer = guidance.answer or 'Ruby could not generate a response. Please try again.'
             top_category = ranking[0]
-            if top_category == 'food':
-                options = generate_food_remedies(question)
-            elif top_category == 'drugs':
-                options = generate_drug_remedies(question)
-            else:
-                options = generate_cosmetic_remedies(question)
+            options = ruby_category_options(
+                top_category,
+                guidance.suggested_search_terms,
+                guidance.estimated_prices_usd,
+            )
         else:
             ranking = []
             options = []
@@ -618,21 +990,21 @@ def ask_ruby():
             'ruby_options': options,
             'ruby_category': top_category
         }
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
     except errors.ServerError as error:
         if error.code == 503:
             session['ruby_error'] = 'Gemini is temporarily busy. Please wait a moment and try again.'
             session['ruby_error_question'] = question
-            return redirect(url_for('home'))
+            return redirect(url_for('home', _anchor='ask-ruby'))
         app.logger.exception('Gemini server request failed')
         session['ruby_error'] = 'Ruby could not answer right now. Please try again shortly.'
         session['ruby_error_question'] = question
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
     except Exception:
         app.logger.exception('Gemini request failed')
         session['ruby_error'] = 'Ruby could not answer right now. Please try again shortly.'
         session['ruby_error_question'] = question
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
 
 
 
@@ -695,6 +1067,464 @@ def delete_task(task_id):
                 (task_id, user_id)
             )
             add_activity(connection, user_id, f'Deleted task: {task["title"]}')
+    return redirect(url_for('home'))
+
+@app.post('/nutrition/profile')
+def save_nutrition_profile():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+
+    try:
+        age = int(request.form.get('age', ''))
+        height_cm = float(request.form.get('height_cm', ''))
+        weight_kg = float(request.form.get('weight_kg', ''))
+        manual_value = request.form.get('manual_calorie_target', '').strip()
+        manual_target = int(manual_value) if manual_value else None
+    except (TypeError, ValueError):
+        session['dashboard_error'] = 'Enter valid numbers for your nutrition profile.'
+        return redirect(url_for('home'))
+
+    estimate_sex = request.form.get('estimate_sex', '').strip()
+    activity_level = request.form.get('activity_level', '').strip()
+    valid_profile = (
+        18 <= age <= 100
+        and 120 <= height_cm <= 230
+        and 35 <= weight_kg <= 350
+        and estimate_sex in {'male', 'female'}
+        and activity_level in ACTIVITY_MULTIPLIERS
+        and (manual_target is None or 1000 <= manual_target <= 6000)
+    )
+    if not valid_profile:
+        session['dashboard_error'] = (
+            'Check your profile values. Ruby currently supports adult estimates '
+            'and calorie targets from 1,000 to 6,000.'
+        )
+        return redirect(url_for('home'))
+
+    estimated_calories = estimate_maintenance_calories(
+        age, estimate_sex, height_cm, weight_kg, activity_level
+    )
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO nutrition_profiles (
+                user_id, age, estimate_sex, height_cm, weight_kg,
+                activity_level, estimated_calories, manual_calorie_target
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                age = excluded.age,
+                estimate_sex = excluded.estimate_sex,
+                height_cm = excluded.height_cm,
+                weight_kg = excluded.weight_kg,
+                activity_level = excluded.activity_level,
+                estimated_calories = excluded.estimated_calories,
+                manual_calorie_target = excluded.manual_calorie_target,
+                updated_at = CURRENT_TIMESTAMP
+            ''',
+            (
+                get_user_id(), age, estimate_sex, height_cm, weight_kg,
+                activity_level, estimated_calories, manual_target,
+            ),
+        )
+    session['dashboard_notice'] = 'Your nutrition targets were updated.'
+    return redirect(url_for('home'))
+
+@app.post('/nutrition/recipes/<int:saved_recipe_id>')
+def log_saved_recipe(saved_recipe_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+
+    user_id = get_user_id()
+    with get_database() as connection:
+        saved_recipe = connection.execute(
+            '''
+            SELECT * FROM saved_recipes
+            WHERE id = ? AND user_id = ?
+            ''',
+            (saved_recipe_id, user_id),
+        ).fetchone()
+    if not saved_recipe:
+        session['dashboard_error'] = 'That saved recipe could not be found.'
+        return redirect(url_for('home'))
+
+    try:
+        recipe = get_recipe_details(
+            saved_recipe['spoonacular_id'],
+            include_nutrition=True,
+        )
+        nutrients = recipe_nutrients(recipe)
+    except Exception:
+        app.logger.exception('Failed to load saved recipe nutrition')
+        session['dashboard_error'] = (
+            'Ruby could not load nutrition for that recipe right now.'
+        )
+        return redirect(url_for('home'))
+
+    if nutrients['calories'] <= 0:
+        session['dashboard_error'] = 'Nutrition data is unavailable for that recipe.'
+        return redirect(url_for('home'))
+
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO food_log (
+                user_id, saved_recipe_id, title, calories, protein_g,
+                carbs_g, fat_g, fiber_g, calcium_mg, iron_mg,
+                potassium_mg, vitamin_c_mg, vitamin_d_mcg, log_date
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                user_id,
+                saved_recipe_id,
+                saved_recipe['title'],
+                nutrients['calories'],
+                nutrients['protein_g'],
+                nutrients['carbs_g'],
+                nutrients['fat_g'],
+                nutrients['fiber_g'],
+                nutrients['calcium_mg'],
+                nutrients['iron_mg'],
+                nutrients['potassium_mg'],
+                nutrients['vitamin_c_mg'],
+                nutrients['vitamin_d_mcg'],
+                date.today().isoformat(),
+            ),
+        )
+    session['dashboard_notice'] = f"Added {saved_recipe['title']} to today."
+    return redirect(url_for('home'))
+
+@app.get('/api/nutrition/foods')
+def search_nutrition_foods():
+    if not session.get('username'):
+        return jsonify({'error': 'Authentication required'}), 401
+    query = request.args.get('q', '').strip()[:80]
+    if len(query) < 2:
+        return jsonify({'results': []})
+    if food_search_rate_limited():
+        return jsonify({'error': 'Too many searches. Please wait a minute.'}), 429
+    try:
+        return jsonify({'results': search_usda_foods(query)})
+    except requests.RequestException:
+        app.logger.exception('USDA food search failed')
+        return jsonify({'error': 'Food search is temporarily unavailable.'}), 502
+
+@app.post('/nutrition/foods')
+def log_usda_food():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    try:
+        fdc_id = int(request.form.get('fdc_id', ''))
+        amount = float(request.form.get('amount', ''))
+        unit = request.form.get('unit', 'grams')
+        if unit not in {'grams', 'serving'}:
+            raise ValueError('Choose grams or servings.')
+        food = get_usda_food(fdc_id)
+        values = food_log_values(food, amount, unit)
+    except (TypeError, ValueError):
+        session['dashboard_error'] = 'Choose a food and enter a valid amount.'
+        return redirect(url_for('home'))
+    except requests.RequestException:
+        app.logger.exception('USDA food details failed')
+        session['dashboard_error'] = (
+            'Ruby could not load that food’s nutrition right now.'
+        )
+        return redirect(url_for('home'))
+
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO food_log (
+                user_id, fdc_id, title, amount_grams, calories, protein_g,
+                carbs_g, fat_g, fiber_g, calcium_mg, iron_mg,
+                potassium_mg, vitamin_c_mg, vitamin_d_mcg, log_date
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                get_user_id(),
+                fdc_id,
+                values['title'],
+                values['amount_grams'],
+                values['calories'],
+                values['protein_g'],
+                values['carbs_g'],
+                values['fat_g'],
+                values['fiber_g'],
+                values['calcium_mg'],
+                values['iron_mg'],
+                values['potassium_mg'],
+                values['vitamin_c_mg'],
+                values['vitamin_d_mcg'],
+                date.today().isoformat(),
+            ),
+        )
+    session['dashboard_notice'] = f"Added {values['title']} to today."
+    return redirect(url_for('home'))
+
+@app.post('/nutrition/log/<int:food_log_id>/delete')
+def delete_food_log(food_log_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    with get_database() as connection:
+        connection.execute(
+            'DELETE FROM food_log WHERE id = ? AND user_id = ?',
+            (food_log_id, get_user_id()),
+        )
+    return redirect(url_for('home'))
+
+
+@app.post('/nutrition/water')
+def update_water_log():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    try:
+        change_ml = int(request.form.get('change_ml', ''))
+    except (TypeError, ValueError):
+        return redirect(url_for('home'))
+    if change_ml not in {-250, 250}:
+        return redirect(url_for('home'))
+
+    user_id = get_user_id()
+    today = date.today().isoformat()
+    with get_database() as connection:
+        current = connection.execute(
+            'SELECT amount_ml FROM water_log WHERE user_id = ? AND log_date = ?',
+            (user_id, today),
+        ).fetchone()
+        amount_ml = min(10000, max(0, (current['amount_ml'] if current else 0) + change_ml))
+        connection.execute(
+            '''
+            INSERT INTO water_log (user_id, log_date, amount_ml)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, log_date)
+            DO UPDATE SET amount_ml = excluded.amount_ml
+            ''',
+            (user_id, today, amount_ml),
+        )
+    return redirect(url_for('home'))
+
+
+@app.get('/api/medications')
+def medication_search():
+    if not session.get('username'):
+        return jsonify({'error': 'Authentication required'}), 401
+    query = request.args.get('q', '').strip()[:80]
+    if len(query) < 2:
+        return jsonify({'results': []})
+    if food_search_rate_limited():
+        return jsonify({'error': 'Too many searches. Please wait a minute.'}), 429
+    try:
+        return jsonify({'results': search_medications(query)})
+    except requests.RequestException:
+        app.logger.exception('Medication search failed')
+        return jsonify({'error': 'Medication search is temporarily unavailable.'}), 502
+
+
+@app.post('/medications')
+def add_medication():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    name = request.form.get('name', '').strip()[:160]
+    rxcui = request.form.get('rxcui', '').strip()[:30]
+    strength = request.form.get('strength', '').strip()[:100]
+    labeler = request.form.get('labeler', '').strip()[:160]
+    logo_url = request.form.get('logo_url', '').strip()[:500]
+    raw_schedule_times = request.form.getlist('schedule_times')
+    start_date = request.form.get('start_date', '').strip()
+    end_date = request.form.get('end_date', '').strip()
+    if not name or not raw_schedule_times or not start_date or not end_date:
+        session['dashboard_error'] = 'Choose medication times and treatment dates.'
+        return redirect(url_for('home'))
+    try:
+        schedule_times = []
+        for raw_time in raw_schedule_times[:3]:
+            parsed_time = time.strptime(raw_time.strip(), '%H:%M')
+            normalized_time = time.strftime('%H:%M', parsed_time)
+            if normalized_time not in schedule_times:
+                schedule_times.append(normalized_time)
+        parsed_start = date.fromisoformat(start_date)
+        parsed_end = date.fromisoformat(end_date)
+    except ValueError:
+        session['dashboard_error'] = 'Choose valid medication times and dates.'
+        return redirect(url_for('home'))
+    if (
+        not schedule_times
+        or parsed_end < parsed_start
+        or (parsed_end - parsed_start).days > 3650
+    ):
+        session['dashboard_error'] = 'Check the treatment schedule and date range.'
+        return redirect(url_for('home'))
+    schedule_times.sort()
+    schedule_time = schedule_times[0]
+    safety_note = medication_safety_note(name)
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO medications (
+                user_id, rxcui, name, labeler, logo_url, strength,
+                schedule_time, schedule_times, start_date, end_date, safety_note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                get_user_id(),
+                rxcui,
+                name,
+                labeler,
+                logo_url,
+                strength,
+                schedule_time,
+                json.dumps(schedule_times),
+                start_date,
+                end_date,
+                safety_note,
+            ),
+        )
+    session['dashboard_active_plan'] = 'medication-plan'
+    session['dashboard_notice'] = f'Added {name} to your medication schedule.'
+    return redirect(url_for('home'))
+
+
+@app.post('/medications/<int:medication_id>/delete')
+def delete_medication(medication_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    with get_database() as connection:
+        connection.execute(
+            'DELETE FROM medication_doses WHERE medication_id = ? AND user_id = ?',
+            (medication_id, get_user_id()),
+        )
+        connection.execute(
+            'DELETE FROM medication_dose_events WHERE medication_id = ? AND user_id = ?',
+            (medication_id, get_user_id()),
+        )
+        connection.execute(
+            'DELETE FROM medications WHERE id = ? AND user_id = ?',
+            (medication_id, get_user_id()),
+        )
+    session['dashboard_active_plan'] = 'medication-plan'
+    return redirect(url_for('home'))
+
+
+@app.post('/medications/<int:medication_id>/taken')
+def mark_medication_taken(medication_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    user_id = get_user_id()
+    schedule_time = request.form.get('schedule_time', '').strip()
+    with get_database() as connection:
+        medication = connection.execute(
+            'SELECT schedule_times FROM medications WHERE id = ? AND user_id = ?',
+            (medication_id, user_id),
+        ).fetchone()
+        try:
+            valid_times = json.loads(medication['schedule_times']) if medication else []
+        except (TypeError, ValueError):
+            valid_times = []
+        if medication and schedule_time in valid_times:
+            connection.execute(
+                '''
+                INSERT INTO medication_dose_events (
+                    medication_id, user_id, dose_date, schedule_time, taken_at
+                ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(medication_id, user_id, dose_date, schedule_time)
+                DO UPDATE SET taken_at = CURRENT_TIMESTAMP
+                ''',
+                (
+                    medication_id,
+                    user_id,
+                    date.today().isoformat(),
+                    schedule_time,
+                ),
+            )
+    session['dashboard_active_plan'] = 'medication-plan'
+    return redirect(url_for('home'))
+
+
+@app.post('/medications/<int:medication_id>/untaken')
+def mark_medication_untaken(medication_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    with get_database() as connection:
+        connection.execute(
+            '''
+            DELETE FROM medication_dose_events
+            WHERE medication_id = ? AND user_id = ? AND dose_date = ?
+                AND schedule_time = ?
+            ''',
+            (
+                medication_id,
+                get_user_id(),
+                date.today().isoformat(),
+                request.form.get('schedule_time', '').strip(),
+            ),
+        )
+    session['dashboard_active_plan'] = 'medication-plan'
+    return redirect(url_for('home'))
+
+
+@app.get('/api/cosmetics')
+def cosmetic_search():
+    if not session.get('username'):
+        return jsonify({'error': 'Authentication required'}), 401
+    query = request.args.get('q', '').strip()[:80]
+    if len(query) < 2:
+        return jsonify({'results': []})
+    if food_search_rate_limited():
+        return jsonify({'error': 'Too many searches. Please wait a minute.'}), 429
+    try:
+        return jsonify({'results': search_cosmetics(query)})
+    except requests.RequestException:
+        app.logger.exception('Cosmetic search failed')
+        return jsonify({'error': 'Cosmetic search is temporarily unavailable.'}), 502
+
+
+@app.post('/cosmetics')
+def add_cosmetic():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    name = request.form.get('name', '').strip()[:160]
+    brand = request.form.get('brand', '').strip()[:120]
+    routine_time = request.form.get('routine_time', '').strip()
+    if not name or routine_time not in {'morning', 'afternoon', 'evening'}:
+        session['dashboard_error'] = 'Choose a cosmetic and routine time.'
+        return redirect(url_for('home'))
+    safety_note = cosmetic_safety_note(name, brand)
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO cosmetic_routine (
+                user_id, product_code, name, brand, image_url, logo_url,
+                routine_time, safety_note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                get_user_id(),
+                request.form.get('product_code', '').strip()[:80],
+                name,
+                brand,
+                request.form.get('image_url', '').strip()[:500],
+                request.form.get('logo_url', '').strip()[:500],
+                routine_time,
+                safety_note,
+            ),
+        )
+    session['dashboard_active_plan'] = 'cosmetic-plan'
+    session['dashboard_notice'] = f'Added {name} to your cosmetic routine.'
+    return redirect(url_for('home'))
+
+
+@app.post('/cosmetics/<int:cosmetic_id>/delete')
+def delete_cosmetic(cosmetic_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    with get_database() as connection:
+        connection.execute(
+            'DELETE FROM cosmetic_routine WHERE id = ? AND user_id = ?',
+            (cosmetic_id, get_user_id()),
+        )
+    session['dashboard_active_plan'] = 'cosmetic-plan'
     return redirect(url_for('home'))
 
 @app.route('/recipe', methods=['GET', 'POST'])

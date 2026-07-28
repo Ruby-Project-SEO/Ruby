@@ -6,14 +6,22 @@
             <div>
                 <span class="dashboard-label">Your wellness dashboard</span>
                 <h1><span id="typed-greeting">Good day{% if username %}, {{ username }}{% endif %}</span><span class="typing-caret" aria-hidden="true"></span></h1>
-                <p>What can Ruby help you with today?</p>
+                <p>Here’s what needs your attention today.</p>
+            </div>
+        </div>
+
+        <div id="ask-ruby" class="dashboard-ask-heading">
+            <span class="dashboard-section-label">Ask Ruby</span>
+            <div>
+                <h2>Need help with something else?</h2>
+                <p>Ask about food, medications, or personal care.</p>
             </div>
         </div>
 
         <form id="ruby-question-form" class="wellness-search" action="{{ url_for('ask_ruby') }}" method="POST" autocomplete="off">
             <i class="bi bi-search"></i>
-            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="Ask a wellness question..." aria-label="Ask a wellness question" autocomplete="off" required>
-            <button type="submit">Ask Ruby</button>
+            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="What would you like to know?" aria-label="Ask Ruby a wellness question" autocomplete="off" required>
+            <button type="submit">Ask</button>
         </form>
 
         {% if ruby_answer or ruby_error %}
@@ -39,13 +47,17 @@
                             <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-egg-fried"></i>Food{% if loop.first %}<small>Start here</small>{% endif %}
                         </a>
                         {% elif category == 'drugs' %}
-                        <span class="unavailable-remedy {% if loop.first %}recommended-remedy{% endif %}">
+                        <a class="{% if loop.first %}recommended-remedy{% endif %}"
+                           href="#medication-plan" data-open-plan="medication-plan">
                             <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-capsule"></i>Drugs
-                        </span>
+                            {% if loop.first %}<small>Start here</small>{% endif %}
+                        </a>
                         {% elif category == 'cosmetics' %}
-                        <span class="unavailable-remedy {% if loop.first %}recommended-remedy{% endif %}">
+                        <a class="{% if loop.first %}recommended-remedy{% endif %}"
+                           href="#cosmetic-plan" data-open-plan="cosmetic-plan">
                             <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-droplet"></i>Cosmetics
-                        </span>
+                            {% if loop.first %}<small>Start here</small>{% endif %}
+                        </a>
                         {% endif %}
                     {% endfor %}
                 </div>
@@ -82,9 +94,12 @@
                         </div>
                         <div class="option-details">
                             <h3>{{ option_name }}</h3>
-                            <p>{{ ruby_category|capitalize }} option</p>
+                            <p>{{ item.get('Detail') or (ruby_category|capitalize ~ ' option') }}</p>
                         </div>
-                        <span class="option-price">{{ item.Price|format_price }}</span>
+                        <span class="option-price">
+                            {{ item.Price|format_price }}
+                            {% if item.get('PriceEstimated') %}<small>estimate</small>{% endif %}
+                        </span>
                         {% if ruby_category == 'food' %}
                         <span class="option-select"><i class="bi bi-plus-lg"></i></span>
                     </label>
@@ -106,75 +121,534 @@
         </div>
         {% endif %}
 
-        {% set task_total = tasks|length %}
-        <section class="task-panel">
-            <div class="task-panel-header">
+        {% if dashboard_notice %}
+        <p class="dashboard-message success" role="status">{{ dashboard_notice }}</p>
+        {% endif %}
+        {% if dashboard_error %}
+        <p class="dashboard-message error" role="alert">{{ dashboard_error }}</p>
+        {% endif %}
+
+        <section class="task-panel plan-workspace">
+            <div class="task-panel-header plan-workspace-header">
                 <div>
-                    <h2>Tasks</h2>
-                    <p>Keep track of what you want to finish.</p>
+                    <span class="dashboard-section-label">Today</span>
+                    <h2>Your plan</h2>
+                    <p>One place for nutrition, schedules, routines, and safety.</p>
                 </div>
-                <span>{{ completed_count }} of {{ task_total }} done</span>
             </div>
 
-            <div class="task-progress" role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="{{ task_total }}" aria-valuenow="{{ completed_count }}">
-                <span style="width: {% if task_total %}{{ (completed_count / task_total * 100)|round }}{% else %}0{% endif %}%"></span>
+            <div class="plan-tabs" role="tablist" aria-label="Plan category">
+                <button id="food-plan-tab" class="{% if active_plan == 'food-plan' %}active{% endif %}"
+                        type="button" role="tab"
+                        aria-selected="{{ 'true' if active_plan == 'food-plan' else 'false' }}"
+                        aria-controls="food-plan" data-plan-tab="food-plan">
+                    Food
+                </button>
+                <button id="medication-plan-tab"
+                        class="{% if active_plan == 'medication-plan' %}active{% endif %}"
+                        type="button" role="tab"
+                        aria-selected="{{ 'true' if active_plan == 'medication-plan' else 'false' }}"
+                        aria-controls="medication-plan" data-plan-tab="medication-plan">
+                    Medications
+                </button>
+                <button id="cosmetic-plan-tab"
+                        class="{% if active_plan == 'cosmetic-plan' %}active{% endif %}"
+                        type="button" role="tab"
+                        aria-selected="{{ 'true' if active_plan == 'cosmetic-plan' else 'false' }}"
+                        aria-controls="cosmetic-plan" data-plan-tab="cosmetic-plan">
+                    Cosmetics
+                </button>
             </div>
 
-            <form class="task-add-form" action="{{ url_for('add_task') }}" method="POST" autocomplete="off">
-                <input type="text" name="title" maxlength="120" placeholder="What do you need to do?" aria-label="New task" autocomplete="off" required>
-                <button type="submit"><i class="bi bi-plus-lg"></i><span>Add task</span></button>
-            </form>
+            <div id="food-plan" class="plan-panel" role="tabpanel" aria-labelledby="food-plan-tab"
+                 {% if active_plan != 'food-plan' %}hidden{% endif %}>
+                <div class="plan-panel-heading">
+                    <div>
+                        <h3>Food overview</h3>
+                        <p>Today’s nutrition and food-safety picture.</p>
+                    </div>
+                    <span class="plan-setup-status">
+                        {% if food_log %}{{ food_log|length }} item{% if food_log|length != 1 %}s{% endif %} logged
+                        {% elif nutrition_profile %}Ready to log
+                        {% else %}Setup needed{% endif %}
+                    </span>
+                </div>
 
-            <div class="task-list">
-                {% for task in tasks %}
-                <div class="task-row {% if task.completed %}completed{% endif %}">
-                    <form class="task-toggle-form" action="{{ url_for('toggle_task', task_id=task.id) }}" method="POST">
-                        <button class="task-toggle" type="submit" aria-label="{% if task.completed %}Mark {{ task.title }} incomplete{% else %}Mark {{ task.title }} complete{% endif %}">
-                            <i class="bi {% if task.completed %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                <div class="food-dashboard-grid">
+                    <div class="food-actions-column">
+                        <section class="food-add-section">
+                            <span class="plan-block-label">Add food</span>
+                            <button id="open-food-search" class="open-food-search" type="button">
+                                Search and add food
+                            </button>
+
+                            <div class="saved-food-list">
+                                <div class="saved-food-heading">
+                                    <strong>Saved recipes</strong>
+                                    <a href="{{ url_for('my_ruby') }}">View all</a>
+                                </div>
+                                {% for recipe in saved_recipes[:3] %}
+                                <div class="saved-food-row">
+                                    <span>{{ recipe.title }}</span>
+                                    <form action="{{ url_for('log_saved_recipe', saved_recipe_id=recipe.id) }}" method="POST">
+                                        <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                        <button type="submit">Add to today</button>
+                                    </form>
+                                </div>
+                                {% else %}
+                                <p class="plan-empty-copy">
+                                    No saved recipes yet.
+                                    <a href="{{ url_for('recipe') }}">Find a recipe</a>
+                                </p>
+                                {% endfor %}
+                            </div>
+                        </section>
+
+                        {% if food_log %}
+                        <section class="today-food-log">
+                            <span class="plan-block-label">Logged today</span>
+                            {% for item in food_log %}
+                            <div>
+                                <span>{{ item.title }}</span>
+                                <small>{{ item.calories|round|int }} cal</small>
+                                <form action="{{ url_for('delete_food_log', food_log_id=item.id) }}" method="POST">
+                                    <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                    <button type="submit" aria-label="Remove {{ item.title }} from today">Remove</button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        </section>
+                        {% endif %}
+
+                        <details class="nutrition-profile" {% if not nutrition_profile %}open{% endif %}>
+                            <summary>
+                                {% if nutrition_profile %}Edit nutrition targets{% else %}Set up nutrition targets{% endif %}
+                            </summary>
+                            <form action="{{ url_for('save_nutrition_profile') }}" method="POST">
+                                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                <label>
+                                    <span>Age</span>
+                                    <input type="number" name="age" min="18" max="100"
+                                           value="{{ nutrition_profile.age if nutrition_profile else '' }}" required>
+                                </label>
+                                <label>
+                                    <span>Height (cm)</span>
+                                    <input type="number" name="height_cm" min="120" max="230" step="0.1"
+                                           value="{{ nutrition_profile.height_cm if nutrition_profile else '' }}" required>
+                                </label>
+                                <label>
+                                    <span>Weight (kg)</span>
+                                    <input type="number" name="weight_kg" min="35" max="350" step="0.1"
+                                           value="{{ nutrition_profile.weight_kg if nutrition_profile else '' }}" required>
+                                </label>
+                                <label>
+                                    <span>Sex used for estimate</span>
+                                    <select name="estimate_sex" required>
+                                        <option value="">Choose</option>
+                                        <option value="female" {% if nutrition_profile and nutrition_profile.estimate_sex == 'female' %}selected{% endif %}>Female</option>
+                                        <option value="male" {% if nutrition_profile and nutrition_profile.estimate_sex == 'male' %}selected{% endif %}>Male</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Activity</span>
+                                    <select name="activity_level" required>
+                                        <option value="">Choose</option>
+                                        <option value="sedentary" {% if nutrition_profile and nutrition_profile.activity_level == 'sedentary' %}selected{% endif %}>Mostly seated</option>
+                                        <option value="light" {% if nutrition_profile and nutrition_profile.activity_level == 'light' %}selected{% endif %}>Lightly active</option>
+                                        <option value="moderate" {% if nutrition_profile and nutrition_profile.activity_level == 'moderate' %}selected{% endif %}>Moderately active</option>
+                                        <option value="very_active" {% if nutrition_profile and nutrition_profile.activity_level == 'very_active' %}selected{% endif %}>Very active</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Manual calorie target (optional)</span>
+                                    <input type="number" name="manual_calorie_target" min="1000" max="6000"
+                                           value="{{ nutrition_profile.manual_calorie_target if nutrition_profile and nutrition_profile.manual_calorie_target else '' }}"
+                                           placeholder="Overrides estimate">
+                                </label>
+                                <button type="submit">Save targets</button>
+                            </form>
+                            <small>
+                                Ruby provides a rough adult maintenance estimate, not medical advice.
+                                A manual target always overrides it.
+                            </small>
+                        </details>
+                    </div>
+
+                    <aside class="nutrition-summary">
+                        <div class="nutrition-gauges">
+                            <div class="calorie-ring"
+                                 style="--calorie-progress: {{ (calorie_progress|default(0)) * 3.6 }}deg"
+                                 aria-label="{{ nutrition_totals.calories|default(0)|round|int }} of {{ calorie_target|default(0) }} calories">
+                                <div>
+                                    <strong>{{ nutrition_totals.calories|default(0)|round|int }}</strong>
+                                    <span>{% if calorie_target %}of {{ calorie_target }} cal{% else %}calories{% endif %}</span>
+                                </div>
+                            </div>
+                            <section class="water-gauge"
+                                     aria-label="{{ water_amount_ml }} of {{ water_goal_ml }} milliliters of water">
+                                <span class="water-gauge-label">Water</span>
+                                <div class="water-bar">
+                                    <span style="height: {{ water_progress }}%"></span>
+                                </div>
+                                <strong>{{ (water_amount_ml / 1000)|round(2) }} L</strong>
+                                <small>of {{ (water_goal_ml / 1000)|round(1) }} L</small>
+                                <div class="water-controls">
+                                    <form action="{{ url_for('update_water_log') }}" method="POST">
+                                        <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                        <input type="hidden" name="change_ml" value="-250">
+                                        <button type="submit" aria-label="Remove one glass of water">−</button>
+                                    </form>
+                                    <form action="{{ url_for('update_water_log') }}" method="POST">
+                                        <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                        <input type="hidden" name="change_ml" value="250">
+                                        <button type="submit" aria-label="Add one 250 milliliter glass of water">+</button>
+                                    </form>
+                                </div>
+                            </section>
+                        </div>
+                        <section>
+                            <span class="plan-block-label">Macros</span>
+                            <div class="nutrition-stat-row">
+                                <span>Protein</span><strong>{{ nutrition_totals.protein_g|default(0) }} g</strong>
+                            </div>
+                            <div class="nutrition-stat-row">
+                                <span>Carbs</span><strong>{{ nutrition_totals.carbs_g|default(0) }} g</strong>
+                            </div>
+                            <div class="nutrition-stat-row">
+                                <span>Fat</span><strong>{{ nutrition_totals.fat_g|default(0) }} g</strong>
+                            </div>
+                        </section>
+                        <section>
+                            <span class="plan-block-label">Micronutrients</span>
+                            <div class="micro-grid">
+                                <span>Fiber <b>{{ nutrition_totals.fiber_g|default(0) }} g</b></span>
+                                <span>Calcium <b>{{ nutrition_totals.calcium_mg|default(0) }} mg</b></span>
+                                <span>Iron <b>{{ nutrition_totals.iron_mg|default(0) }} mg</b></span>
+                                <span>Potassium <b>{{ nutrition_totals.potassium_mg|default(0) }} mg</b></span>
+                                <span>Vitamin C <b>{{ nutrition_totals.vitamin_c_mg|default(0) }} mg</b></span>
+                                <span>Vitamin D <b>{{ nutrition_totals.vitamin_d_mcg|default(0) }} mcg</b></span>
+                            </div>
+                        </section>
+                        <section class="nutrition-safety-row">
+                            <div>
+                                <span class="plan-block-label">Food safety</span>
+                                <strong>Monitoring comes next</strong>
+                            </div>
+                            <p>Recall data will be matched to specific saved products, not generic meals.</p>
+                        </section>
+                    </aside>
+                </div>
+            </div>
+
+            <div id="medication-plan" class="plan-panel" role="tabpanel"
+                 aria-labelledby="medication-plan-tab"
+                 {% if active_plan != 'medication-plan' %}hidden{% endif %}>
+                <div class="plan-panel-heading">
+                    <div>
+                        <h3>Medication schedule</h3>
+                        <p>What’s due today and whether anything needs attention.</p>
+                    </div>
+                    <div class="medication-heading-actions">
+                        <button id="enable-medication-reminders" class="reminder-button" type="button">
+                            Remind me
                         </button>
-                    </form>
-                    <div class="task-content">
-                        <span class="task-title">{{ task.title }}</span>
-                        <form class="task-edit-form" action="{{ url_for('edit_task', task_id=task.id) }}" method="POST">
-                            <input type="text" name="title" value="{{ task.title }}" maxlength="120" aria-label="Edit task" required>
-                            <button class="task-save" type="submit">Save</button>
-                            <button class="task-cancel" type="button">Cancel</button>
-                        </form>
-                    </div>
-                    <div class="task-actions">
-                        <button class="task-edit-toggle" type="button" aria-label="Edit {{ task.title }}"><i class="bi bi-pencil"></i></button>
-                        <form action="{{ url_for('delete_task', task_id=task.id) }}" method="POST">
-                            <button class="task-delete" type="submit" aria-label="Delete {{ task.title }}"><i class="bi bi-trash3"></i></button>
-                        </form>
+                        <button id="open-medication-search" class="plan-add-button" type="button">
+                            Add medication
+                        </button>
                     </div>
                 </div>
-                {% else %}
-                <div class="task-empty-state">
-                    <i class="bi bi-check2-circle"></i>
-                    <p>No tasks yet.</p>
-                    <span>Add one above when something comes to mind.</span>
+                <div class="routine-list">
+                    {% for item in medications %}
+                    <article class="routine-item medication-card {% if not item.logo_url %}without-image{% endif %}">
+                        {% if item.logo_url %}
+                        <span class="routine-product-image">
+                            <img src="{{ item.logo_url }}" alt="{{ item.labeler or item.name }} logo"
+                                 loading="lazy">
+                        </span>
+                        {% endif %}
+                        <div>
+                            <strong>{{ item.name }}</strong>
+                            <span>
+                                {{ item.labeler or 'Labeler not listed' }} ·
+                                {{ item.strength or 'Strength not specified' }}
+                            </span>
+                            <small>
+                                {% if item.start_date and item.end_date %}
+                                {{ item.start_date }} through {{ item.end_date }}
+                                {% else %}
+                                Ongoing schedule
+                                {% endif %}
+                            </small>
+                            <small>{{ item.safety_note }}</small>
+                        </div>
+                        <div class="medication-dose-list">
+                            {% for dose in item.doses %}
+                            <div class="medication-dose-row"
+                                 data-medication-name="{{ item.name }}"
+                                 data-schedule-time="{{ dose.schedule_time }}"
+                                 data-dose-status="{{ dose.dose_status }}">
+                                <span>{{ dose.schedule_time }}</span>
+                                <small class="dose-status {{ dose.dose_status }}">
+                                    {% if dose.dose_status == 'taken' %}Taken
+                                    {% elif dose.dose_status == 'due' %}Due now
+                                    {% elif dose.dose_status == 'inactive' %}Not active
+                                    {% else %}Upcoming{% endif %}
+                                </small>
+                                {% if dose.dose_status == 'taken' %}
+                                <form action="{{ url_for('mark_medication_untaken', medication_id=item.id) }}" method="POST">
+                                    <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                    <input type="hidden" name="schedule_time" value="{{ dose.schedule_time }}">
+                                    <button class="dose-action secondary" type="submit">Undo</button>
+                                </form>
+                                {% elif dose.dose_status != 'inactive' %}
+                                <form action="{{ url_for('mark_medication_taken', medication_id=item.id) }}" method="POST">
+                                    <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                    <input type="hidden" name="schedule_time" value="{{ dose.schedule_time }}">
+                                    <button class="dose-action" type="submit">Mark taken</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="routine-item-actions medication-remove-action">
+                            <form action="{{ url_for('delete_medication', medication_id=item.id) }}" method="POST">
+                                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                <button type="submit" aria-label="Remove {{ item.name }}">Remove</button>
+                            </form>
+                        </div>
+                    </article>
+                    {% else %}
+                    <div class="routine-empty">
+                        <strong>No medications scheduled</strong>
+                        <p>Add a medication to see it here in time order.</p>
+                    </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
+            </div>
+
+            <div id="cosmetic-plan" class="plan-panel" role="tabpanel"
+                 aria-labelledby="cosmetic-plan-tab"
+                 {% if active_plan != 'cosmetic-plan' %}hidden{% endif %}>
+                <div class="plan-panel-heading">
+                    <div>
+                        <h3>Cosmetic routine</h3>
+                        <p>Your personal-care steps and product safety.</p>
+                    </div>
+                    <button id="open-cosmetic-search" class="plan-add-button" type="button">
+                        Add cosmetic
+                    </button>
+                </div>
+                <div class="routine-list">
+                    {% for item in cosmetics %}
+                    <article class="routine-item {% if not item.image_url and not item.logo_url %}without-image{% endif %}">
+                        {% if item.image_url or item.logo_url %}
+                        <span class="routine-product-image">
+                            {% if item.image_url %}
+                            <img src="{{ item.image_url }}" alt="" loading="lazy">
+                            {% else %}
+                            <img src="{{ item.logo_url }}" alt="" loading="lazy">
+                            {% endif %}
+                        </span>
+                        {% endif %}
+                        <div>
+                            <strong>{{ item.name }}</strong>
+                            <span>{{ item.brand or 'Brand not listed' }} · {{ item.routine_time|title }}</span>
+                            <small>{{ item.safety_note }}</small>
+                        </div>
+                        <form action="{{ url_for('delete_cosmetic', cosmetic_id=item.id) }}" method="POST">
+                            <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                            <button type="submit" aria-label="Remove {{ item.name }}">Remove</button>
+                        </form>
+                    </article>
+                    {% else %}
+                    <div class="routine-empty">
+                        <strong>No cosmetic steps scheduled</strong>
+                        <p>Add a product to build your morning or evening routine.</p>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </section>
 
-        <div class="simple-actions">
-            <a class="simple-action" href="{{ url_for('recipe') }}">
-                <i class="bi bi-egg-fried"></i>
-                <span>Recipes</span>
-                <i class="bi bi-arrow-right"></i>
-            </a>
-            <a class="simple-action" href="#">
-                <i class="bi bi-capsule"></i>
-                <span>Drugs</span>
-                <i class="bi bi-arrow-right"></i>
-            </a>
-            <a class="simple-action" href="#">
-                <i class="bi bi-droplet"></i>
-                <span>Cosmetics</span>
-                <i class="bi bi-arrow-right"></i>
-            </a>
-        </div>
+        <dialog id="food-search-dialog" class="food-search-dialog">
+            <div class="food-dialog-header">
+                <div>
+                    <span class="dashboard-section-label">Add food</span>
+                    <h2>What did you eat?</h2>
+                    <p>Search verified USDA nutrition data, then enter your amount.</p>
+                </div>
+                <button id="close-food-search" type="button" aria-label="Close food search">Close</button>
+            </div>
+
+            <div id="food-search-step">
+                <label class="modal-food-search">
+                    <span>Search foods</span>
+                    <input id="usda-food-query" type="search"
+                           placeholder="Try chicken breast, rice, yogurt..."
+                           autocomplete="off">
+                <p id="food-search-status" class="food-search-status">
+                    Enter at least two letters to search.
+                </p>
+                <div id="usda-food-results" class="usda-food-results" role="listbox"></div>
+            </div>
+
+            <form id="food-amount-form" class="food-amount-form"
+                  action="{{ url_for('log_usda_food') }}" method="POST" hidden>
+                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                <input id="selected-fdc-id" type="hidden" name="fdc_id">
+                <button id="change-selected-food" class="change-selected-food" type="button">
+                    Back to results
+                </button>
+                <div class="selected-food-copy">
+                    <span>Selected food</span>
+                    <h3 id="selected-food-name"></h3>
+                    <p id="selected-food-brand"></p>
+                </div>
+                <div class="food-amount-fields">
+                    <label>
+                        <span>Amount</span>
+                        <input id="food-amount" type="number" name="amount"
+                               min="0.1" max="5000" step="0.1" required>
+                    </label>
+                    <label>
+                        <span>Measure</span>
+                        <select id="food-unit" name="unit">
+                            <option value="grams">grams</option>
+                            <option id="food-serving-option" value="serving">servings</option>
+                        </select>
+                    </label>
+                </div>
+                <p id="selected-serving-note" class="selected-serving-note"></p>
+                <button class="confirm-food-add" type="submit">Add to today</button>
+            </form>
+        </dialog>
+
+        <dialog id="medication-search-dialog" class="food-search-dialog product-search-dialog">
+            <div class="food-dialog-header">
+                <div>
+                    <span class="dashboard-section-label">Add medication</span>
+                    <h2>What do you take?</h2>
+                    <p>Search normalized RxNorm medication records.</p>
+                </div>
+                <button class="close-product-dialog" type="button">Close</button>
+            </div>
+            <div class="product-search-step">
+                <label class="modal-food-search">
+                    <span>Search medications</span>
+                    <input class="product-query" type="search"
+                           placeholder="Try metformin, lisinopril..." autocomplete="off">
+                </label>
+                <p class="food-search-status product-search-status">
+                    Enter at least two letters to search.
+                </p>
+                <div class="usda-food-results product-results" role="listbox"></div>
+            </div>
+            <form class="food-amount-form product-selection-form"
+                  action="{{ url_for('add_medication') }}" method="POST" hidden>
+                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                <input class="selected-product-id" type="hidden" name="rxcui">
+                <input class="selected-product-name-input" type="hidden" name="name">
+                <input class="selected-product-labeler" type="hidden" name="labeler">
+                <input class="selected-product-logo" type="hidden" name="logo_url">
+                <button class="change-selected-product change-selected-food" type="button">
+                    Back to results
+                </button>
+                <div class="selected-food-copy">
+                    <span>Selected medication</span>
+                    <h3 class="selected-product-name"></h3>
+                    <p>Set how often and how long you need to take it.</p>
+                </div>
+                <div class="food-amount-fields">
+                    <label>
+                        <span>Strength</span>
+                        <select class="product-option" name="strength"></select>
+                    </label>
+                    <label>
+                        <span>Frequency</span>
+                        <select class="medication-frequency">
+                            <option value="1">Once daily</option>
+                            <option value="2">Twice daily</option>
+                            <option value="3">Three times daily</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="medication-time-fields">
+                    <label>
+                        <span>First dose</span>
+                        <input type="time" name="schedule_times" value="08:00" required>
+                    </label>
+                    <label>
+                        <span>Second dose</span>
+                        <input type="time" name="schedule_times" value="20:00" disabled required>
+                    </label>
+                    <label>
+                        <span>Third dose</span>
+                        <input type="time" name="schedule_times" value="14:00" disabled required>
+                    </label>
+                </div>
+                <div class="food-amount-fields medication-date-fields">
+                    <label>
+                        <span>Start date</span>
+                        <input class="medication-start-date" type="date" name="start_date" required>
+                    </label>
+                    <label>
+                        <span>End date</span>
+                        <input class="medication-end-date" type="date" name="end_date" required>
+                    </label>
+                </div>
+                <button class="confirm-food-add" type="submit">Add medication</button>
+            </form>
+        </dialog>
+
+        <dialog id="cosmetic-search-dialog" class="food-search-dialog product-search-dialog">
+            <div class="food-dialog-header">
+                <div>
+                    <span class="dashboard-section-label">Add cosmetic</span>
+                    <h2>What product do you use?</h2>
+                    <p>Search community-contributed product and brand records.</p>
+                </div>
+                <button class="close-product-dialog" type="button">Close</button>
+            </div>
+            <div class="product-search-step">
+                <label class="modal-food-search">
+                    <span>Search cosmetics</span>
+                    <input class="product-query" type="search"
+                           placeholder="Try CeraVe cleanser, sunscreen..." autocomplete="off">
+                </label>
+                <p class="food-search-status product-search-status">
+                    Enter at least two letters to search.
+                </p>
+                <div class="usda-food-results product-results" role="listbox"></div>
+            </div>
+            <form class="food-amount-form product-selection-form"
+                  action="{{ url_for('add_cosmetic') }}" method="POST" hidden>
+                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                <input class="selected-product-id" type="hidden" name="product_code">
+                <input class="selected-product-name-input" type="hidden" name="name">
+                <input class="selected-product-brand" type="hidden" name="brand">
+                <input class="selected-product-image" type="hidden" name="image_url">
+                <input class="selected-product-logo" type="hidden" name="logo_url">
+                <button class="change-selected-product change-selected-food" type="button">
+                    Back to results
+                </button>
+                <div class="selected-food-copy">
+                    <span>Selected cosmetic</span>
+                    <h3 class="selected-product-name"></h3>
+                    <p class="selected-product-detail"></p>
+                </div>
+                <div class="food-amount-fields single-field">
+                    <label>
+                        <span>Routine time</span>
+                        <select name="routine_time">
+                            <option value="morning">Morning</option>
+                            <option value="afternoon">Afternoon</option>
+                            <option value="evening">Evening</option>
+                        </select>
+                    </label>
+                </div>
+                <button class="confirm-food-add" type="submit">Add to routine</button>
+            </form>
+        </dialog>
     </div>
 </section>
 <script>
@@ -248,6 +722,422 @@
 
         foodCheckboxes.forEach((checkbox) => checkbox.addEventListener('change', updateFoodSelection));
     }
+
+    const planTabs = [...document.querySelectorAll('[data-plan-tab]')];
+    const planPanels = [...document.querySelectorAll('.plan-panel')];
+
+    planTabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            planTabs.forEach((item) => {
+                const selected = item === tab;
+                item.classList.toggle('active', selected);
+                item.setAttribute('aria-selected', String(selected));
+            });
+            planPanels.forEach((panel) => {
+                panel.hidden = panel.id !== tab.dataset.planTab;
+            });
+        });
+    });
+
+    document.querySelectorAll('[data-open-plan]').forEach((link) => {
+        link.addEventListener('click', () => {
+            const targetTab = document.querySelector(
+                `[data-plan-tab="${link.dataset.openPlan}"]`
+            );
+            if (targetTab) targetTab.click();
+        });
+    });
+
+    const foodDialog = document.getElementById('food-search-dialog');
+    const openFoodSearch = document.getElementById('open-food-search');
+    const closeFoodSearch = document.getElementById('close-food-search');
+    const foodSearchStep = document.getElementById('food-search-step');
+    const foodAmountForm = document.getElementById('food-amount-form');
+    const foodQuery = document.getElementById('usda-food-query');
+    const foodResults = document.getElementById('usda-food-results');
+    const foodSearchStatus = document.getElementById('food-search-status');
+    const selectedFdcId = document.getElementById('selected-fdc-id');
+    const selectedFoodName = document.getElementById('selected-food-name');
+    const selectedFoodBrand = document.getElementById('selected-food-brand');
+    const foodAmount = document.getElementById('food-amount');
+    const foodUnit = document.getElementById('food-unit');
+    const foodServingOption = document.getElementById('food-serving-option');
+    const selectedServingNote = document.getElementById('selected-serving-note');
+    const changeSelectedFood = document.getElementById('change-selected-food');
+    let foodSearchTimer;
+    let selectedServingGrams = null;
+
+    const showFoodSearch = () => {
+        foodSearchStep.hidden = false;
+        foodAmountForm.hidden = true;
+        window.setTimeout(() => foodQuery.focus(), 50);
+    };
+
+    openFoodSearch.addEventListener('click', () => {
+        foodDialog.showModal();
+        showFoodSearch();
+    });
+
+    closeFoodSearch.addEventListener('click', () => foodDialog.close());
+    changeSelectedFood.addEventListener('click', showFoodSearch);
+
+    const selectFood = (food) => {
+        selectedFdcId.value = food.fdc_id;
+        selectedFoodName.textContent = food.name;
+        selectedFoodBrand.textContent = food.brand || 'USDA food record';
+        selectedServingGrams = food.serving_grams;
+        foodServingOption.disabled = !selectedServingGrams;
+        foodUnit.value = selectedServingGrams ? 'serving' : 'grams';
+        foodAmount.value = selectedServingGrams ? '1' : '100';
+        selectedServingNote.textContent = selectedServingGrams
+            ? `1 serving is approximately ${selectedServingGrams} g (${food.serving_label}).`
+            : 'This food is measured in grams.';
+        foodSearchStep.hidden = true;
+        foodAmountForm.hidden = false;
+    };
+
+    const renderFoodResults = (foods) => {
+        foodResults.replaceChildren();
+        foods.forEach((food) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'usda-food-result';
+            button.setAttribute('role', 'option');
+
+            const identity = document.createElement('span');
+            identity.className = 'food-result-identity';
+            const logo = document.createElement('span');
+            logo.className = 'food-result-logo';
+            const initials = food.brand ? food.brand
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((word) => word[0])
+                .join('')
+                .toUpperCase() : 'USDA';
+            logo.textContent = initials || 'USDA';
+            if (!food.brand) {
+                logo.classList.add('is-usda');
+                logo.setAttribute('aria-label', 'USDA food record');
+            }
+            if (food.logo_url) {
+                const image = document.createElement('img');
+                image.src = food.logo_url;
+                image.alt = '';
+                image.loading = 'lazy';
+                image.addEventListener('load', () => logo.classList.add('has-image'));
+                image.addEventListener('error', () => image.remove());
+                logo.append(image);
+            }
+
+            const copy = document.createElement('span');
+            copy.className = 'food-result-copy';
+            const name = document.createElement('strong');
+            const detail = document.createElement('small');
+            const nutrition = document.createElement('b');
+            name.textContent = food.name;
+            detail.textContent = [food.brand, food.serving_label].filter(Boolean).join(' · ');
+            nutrition.textContent = food.calories_per_100g
+                ? `${food.calories_per_100g} cal / 100 g`
+                : 'Nutrition available after selection';
+            copy.append(name, detail, nutrition);
+            identity.append(logo, copy);
+
+            const addLabel = document.createElement('span');
+            addLabel.textContent = 'Choose';
+            button.append(identity, addLabel);
+            button.addEventListener('click', () => selectFood(food));
+            foodResults.append(button);
+        });
+    };
+
+    foodQuery.addEventListener('input', () => {
+        window.clearTimeout(foodSearchTimer);
+        const query = foodQuery.value.trim();
+        foodResults.replaceChildren();
+        if (query.length < 2) {
+            foodSearchStatus.textContent = 'Enter at least two letters to search.';
+            return;
+        }
+        foodSearchStatus.textContent = 'Searching…';
+        foodSearchTimer = window.setTimeout(async () => {
+            try {
+                const response = await fetch(`/api/nutrition/foods?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Search failed');
+                renderFoodResults(data.results);
+                foodSearchStatus.textContent = data.results.length
+                    ? `${data.results.length} foods found`
+                    : 'No matching foods found.';
+            } catch (error) {
+                foodSearchStatus.textContent = error.message;
+            }
+        }, 350);
+    });
+
+    foodUnit.addEventListener('change', () => {
+        if (foodUnit.value === 'serving') {
+            foodAmount.value = '1';
+            selectedServingNote.textContent = `1 serving is approximately ${selectedServingGrams} g.`;
+        } else {
+            foodAmount.value = selectedServingGrams || '100';
+            selectedServingNote.textContent = 'Enter the amount you ate in grams.';
+        }
+    });
+
+    const setupProductSearch = ({
+        dialogId,
+        openButtonId,
+        endpoint,
+        kind,
+    }) => {
+        const dialog = document.getElementById(dialogId);
+        const openButton = document.getElementById(openButtonId);
+        const closeButton = dialog.querySelector('.close-product-dialog');
+        const searchStep = dialog.querySelector('.product-search-step');
+        const selectionForm = dialog.querySelector('.product-selection-form');
+        const queryInput = dialog.querySelector('.product-query');
+        const status = dialog.querySelector('.product-search-status');
+        const results = dialog.querySelector('.product-results');
+        const backButton = dialog.querySelector('.change-selected-product');
+        let searchTimer;
+
+        if (kind === 'medication') {
+            const frequency = selectionForm.querySelector('.medication-frequency');
+            const timeInputs = [...selectionForm.querySelectorAll(
+                '.medication-time-fields input'
+            )];
+            const startDate = selectionForm.querySelector('.medication-start-date');
+            const endDate = selectionForm.querySelector('.medication-end-date');
+            const updateFrequency = () => {
+                const count = Number(frequency.value);
+                timeInputs.forEach((input, index) => {
+                    input.disabled = index >= count;
+                    input.closest('label').hidden = index >= count;
+                });
+            };
+            frequency.addEventListener('change', updateFrequency);
+            updateFrequency();
+            const today = new Date();
+            const end = new Date(today);
+            end.setDate(end.getDate() + 29);
+            const formatDateInput = (value) => [
+                value.getFullYear(),
+                String(value.getMonth() + 1).padStart(2, '0'),
+                String(value.getDate()).padStart(2, '0'),
+            ].join('-');
+            startDate.value = formatDateInput(today);
+            endDate.value = formatDateInput(end);
+            startDate.addEventListener('change', () => {
+                endDate.min = startDate.value;
+                if (endDate.value < startDate.value) endDate.value = startDate.value;
+            });
+        }
+
+        const showSearch = () => {
+            searchStep.hidden = false;
+            selectionForm.hidden = true;
+            window.setTimeout(() => queryInput.focus(), 50);
+        };
+
+        const selectProduct = (product) => {
+            selectionForm.querySelector('.selected-product-id').value =
+                product.rxcui || product.code || '';
+            selectionForm.querySelector('.selected-product-name-input').value = product.name;
+            selectionForm.querySelector('.selected-product-name').textContent = product.name;
+            if (kind === 'medication') {
+                selectionForm.querySelector('.selected-product-labeler').value =
+                    product.labeler || '';
+                selectionForm.querySelector('.selected-product-logo').value =
+                    product.logo_url || '';
+                const strengthSelect = selectionForm.querySelector('.product-option');
+                strengthSelect.replaceChildren();
+                const strengths = product.strengths.length
+                    ? product.strengths
+                    : ['Strength not specified'];
+                strengths.forEach((strength) => {
+                    const option = document.createElement('option');
+                    option.value = strength === 'Strength not specified' ? '' : strength;
+                    option.textContent = strength;
+                    strengthSelect.append(option);
+                });
+            } else {
+                selectionForm.querySelector('.selected-product-brand').value = product.brand || '';
+                selectionForm.querySelector('.selected-product-image').value = product.image_url || '';
+                selectionForm.querySelector('.selected-product-logo').value = product.logo_url || '';
+                selectionForm.querySelector('.selected-product-detail').textContent =
+                    product.brand || 'Brand not listed';
+            }
+            searchStep.hidden = true;
+            selectionForm.hidden = false;
+        };
+
+        const renderResults = (products) => {
+            results.replaceChildren();
+            products.forEach((product) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'usda-food-result';
+                button.setAttribute('role', 'option');
+                const identity = document.createElement('span');
+                identity.className = 'food-result-identity';
+                const imageUrl = product.image_url || product.logo_url;
+                if (imageUrl) {
+                    const visual = document.createElement('span');
+                    visual.className = 'food-result-logo';
+                    const image = document.createElement('img');
+                    image.src = imageUrl;
+                    image.alt = '';
+                    image.loading = 'lazy';
+                    image.addEventListener('error', () => {
+                        visual.remove();
+                        identity.classList.add('without-image');
+                    });
+                    visual.append(image);
+                    identity.append(visual);
+                } else {
+                    identity.classList.add('without-image');
+                }
+                const copy = document.createElement('span');
+                copy.className = 'food-result-copy';
+                const name = document.createElement('strong');
+                const detail = document.createElement('small');
+                const source = document.createElement('b');
+                name.textContent = product.name;
+                detail.textContent = kind === 'medication'
+                    ? [product.labeler, product.strengths[0]].filter(Boolean).join(' · ')
+                    : (product.brand || 'Brand not listed');
+                if (kind === 'cosmetic' && product.logo_url) {
+                    detail.classList.add('product-brand-detail');
+                    const brandLogo = document.createElement('img');
+                    brandLogo.src = product.logo_url;
+                    brandLogo.alt = '';
+                    brandLogo.loading = 'lazy';
+                    brandLogo.addEventListener('error', () => brandLogo.remove());
+                    detail.prepend(brandLogo);
+                }
+                source.textContent = product.source;
+                copy.append(name, detail, source);
+                identity.append(copy);
+                const choose = document.createElement('span');
+                choose.textContent = 'Choose';
+                button.append(identity, choose);
+                button.addEventListener('click', () => selectProduct(product));
+                results.append(button);
+            });
+        };
+
+        openButton.addEventListener('click', () => {
+            dialog.showModal();
+            showSearch();
+        });
+        closeButton.addEventListener('click', () => dialog.close());
+        backButton.addEventListener('click', showSearch);
+        queryInput.addEventListener('input', () => {
+            window.clearTimeout(searchTimer);
+            const query = queryInput.value.trim();
+            results.replaceChildren();
+            if (query.length < 2) {
+                status.textContent = 'Enter at least two letters to search.';
+                return;
+            }
+            status.textContent = 'Searching…';
+            searchTimer = window.setTimeout(async () => {
+                try {
+                    const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'Search failed');
+                    renderResults(data.results);
+                    status.textContent = data.results.length
+                        ? `${data.results.length} results found`
+                        : 'No matching products found.';
+                } catch (error) {
+                    status.textContent = error.message;
+                }
+            }, 350);
+        });
+    };
+
+    setupProductSearch({
+        dialogId: 'medication-search-dialog',
+        openButtonId: 'open-medication-search',
+        endpoint: '/api/medications',
+        kind: 'medication',
+    });
+    setupProductSearch({
+        dialogId: 'cosmetic-search-dialog',
+        openButtonId: 'open-cosmetic-search',
+        endpoint: '/api/cosmetics',
+        kind: 'cosmetic',
+    });
+
+    const reminderButton = document.getElementById('enable-medication-reminders');
+    const medicationDoseItems = [...document.querySelectorAll('.medication-dose-row')];
+    const reminderPreferenceKey = 'ruby-medication-reminders';
+
+    const remindersEnabled = () => (
+        'Notification' in window
+        && Notification.permission === 'granted'
+        && window.localStorage.getItem(reminderPreferenceKey) === 'enabled'
+    );
+
+    const updateReminderButton = () => {
+        if (!('Notification' in window)) {
+            reminderButton.textContent = 'Reminders unavailable';
+            reminderButton.disabled = true;
+            return;
+        }
+        const enabled = remindersEnabled();
+        reminderButton.textContent = enabled ? 'Reminders on' : 'Remind me';
+        reminderButton.classList.toggle('enabled', enabled);
+    };
+
+    const checkMedicationReminders = () => {
+        if (!remindersEnabled()) return;
+        const now = new Date();
+        const currentTime = now.toTimeString().slice(0, 5);
+        const today = [
+            now.getFullYear(),
+            String(now.getMonth() + 1).padStart(2, '0'),
+            String(now.getDate()).padStart(2, '0'),
+        ].join('-');
+        medicationDoseItems.forEach((item) => {
+            if (['taken', 'inactive'].includes(item.dataset.doseStatus)) return;
+            if (currentTime < item.dataset.scheduleTime) return;
+            const notificationKey = [
+                'ruby-dose-notified',
+                today,
+                item.dataset.medicationName,
+                item.dataset.scheduleTime,
+            ].join(':');
+            if (window.localStorage.getItem(notificationKey)) return;
+            const notification = new Notification('Time to take your medication', {
+                body: `${item.dataset.medicationName} was scheduled for ${item.dataset.scheduleTime}.`,
+                tag: notificationKey,
+            });
+            notification.addEventListener('click', () => window.focus());
+            window.localStorage.setItem(notificationKey, 'true');
+        });
+    };
+
+    reminderButton.addEventListener('click', async () => {
+        if (!('Notification' in window)) return;
+        if (remindersEnabled()) {
+            window.localStorage.removeItem(reminderPreferenceKey);
+            updateReminderButton();
+            return;
+        }
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            window.localStorage.setItem(reminderPreferenceKey, 'enabled');
+            updateReminderButton();
+            checkMedicationReminders();
+        }
+    });
+
+    updateReminderButton();
+    checkMedicationReminders();
+    window.setInterval(checkMedicationReminders, 30000);
 
     document.querySelectorAll('.task-row').forEach((taskRow) => {
         const editButton = taskRow.querySelector('.task-edit-toggle');
