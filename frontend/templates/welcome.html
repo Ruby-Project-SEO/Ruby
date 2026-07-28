@@ -341,13 +341,21 @@
                         <h3>Medication schedule</h3>
                         <p>What’s due today and whether anything needs attention.</p>
                     </div>
-                    <button id="open-medication-search" class="plan-add-button" type="button">
-                        Add medication
-                    </button>
+                    <div class="medication-heading-actions">
+                        <button id="enable-medication-reminders" class="reminder-button" type="button">
+                            Remind me
+                        </button>
+                        <button id="open-medication-search" class="plan-add-button" type="button">
+                            Add medication
+                        </button>
+                    </div>
                 </div>
                 <div class="routine-list">
                     {% for item in medications %}
-                    <article class="routine-item {% if not item.logo_url %}without-image{% endif %}">
+                    <article class="routine-item medication-dose-item {% if not item.logo_url %}without-image{% endif %}"
+                             data-medication-name="{{ item.name }}"
+                             data-schedule-time="{{ item.schedule_time }}"
+                             data-dose-status="{{ item.dose_status }}">
                         {% if item.logo_url %}
                         <span class="routine-product-image">
                             <img src="{{ item.logo_url }}" alt="{{ item.labeler or item.name }} logo"
@@ -361,12 +369,34 @@
                                 {{ item.strength or 'Strength not specified' }} ·
                                 {{ item.schedule_time }}
                             </span>
+                            <small class="dose-status {{ item.dose_status }}">
+                                {% if item.dose_status == 'taken' %}
+                                Taken today
+                                {% elif item.dose_status == 'due' %}
+                                Due now
+                                {% else %}
+                                Upcoming at {{ item.schedule_time }}
+                                {% endif %}
+                            </small>
                             <small>{{ item.safety_note }}</small>
                         </div>
-                        <form action="{{ url_for('delete_medication', medication_id=item.id) }}" method="POST">
-                            <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
-                            <button type="submit" aria-label="Remove {{ item.name }}">Remove</button>
-                        </form>
+                        <div class="routine-item-actions">
+                            {% if item.dose_status == 'taken' %}
+                            <form action="{{ url_for('mark_medication_untaken', medication_id=item.id) }}" method="POST">
+                                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                <button class="dose-action secondary" type="submit">Undo</button>
+                            </form>
+                            {% else %}
+                            <form action="{{ url_for('mark_medication_taken', medication_id=item.id) }}" method="POST">
+                                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                <button class="dose-action" type="submit">Mark taken</button>
+                            </form>
+                            {% endif %}
+                            <form action="{{ url_for('delete_medication', medication_id=item.id) }}" method="POST">
+                                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                <button type="submit" aria-label="Remove {{ item.name }}">Remove</button>
+                            </form>
+                        </div>
                     </article>
                     {% else %}
                     <div class="routine-empty">
@@ -952,6 +982,74 @@
         endpoint: '/api/cosmetics',
         kind: 'cosmetic',
     });
+
+    const reminderButton = document.getElementById('enable-medication-reminders');
+    const medicationDoseItems = [...document.querySelectorAll('.medication-dose-item')];
+    const reminderPreferenceKey = 'ruby-medication-reminders';
+
+    const remindersEnabled = () => (
+        'Notification' in window
+        && Notification.permission === 'granted'
+        && window.localStorage.getItem(reminderPreferenceKey) === 'enabled'
+    );
+
+    const updateReminderButton = () => {
+        if (!('Notification' in window)) {
+            reminderButton.textContent = 'Reminders unavailable';
+            reminderButton.disabled = true;
+            return;
+        }
+        const enabled = remindersEnabled();
+        reminderButton.textContent = enabled ? 'Reminders on' : 'Remind me';
+        reminderButton.classList.toggle('enabled', enabled);
+    };
+
+    const checkMedicationReminders = () => {
+        if (!remindersEnabled()) return;
+        const now = new Date();
+        const currentTime = now.toTimeString().slice(0, 5);
+        const today = [
+            now.getFullYear(),
+            String(now.getMonth() + 1).padStart(2, '0'),
+            String(now.getDate()).padStart(2, '0'),
+        ].join('-');
+        medicationDoseItems.forEach((item) => {
+            if (item.dataset.doseStatus === 'taken') return;
+            if (currentTime < item.dataset.scheduleTime) return;
+            const notificationKey = [
+                'ruby-dose-notified',
+                today,
+                item.dataset.medicationName,
+                item.dataset.scheduleTime,
+            ].join(':');
+            if (window.localStorage.getItem(notificationKey)) return;
+            const notification = new Notification('Time to take your medication', {
+                body: `${item.dataset.medicationName} was scheduled for ${item.dataset.scheduleTime}.`,
+                tag: notificationKey,
+            });
+            notification.addEventListener('click', () => window.focus());
+            window.localStorage.setItem(notificationKey, 'true');
+        });
+    };
+
+    reminderButton.addEventListener('click', async () => {
+        if (!('Notification' in window)) return;
+        if (remindersEnabled()) {
+            window.localStorage.removeItem(reminderPreferenceKey);
+            updateReminderButton();
+            return;
+        }
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            window.localStorage.setItem(reminderPreferenceKey, 'enabled');
+            updateReminderButton();
+            checkMedicationReminders();
+        }
+    });
+
+    updateReminderButton();
+    checkMedicationReminders();
+    window.setInterval(checkMedicationReminders, 30000);
 
     document.querySelectorAll('.task-row').forEach((taskRow) => {
         const editButton = taskRow.querySelector('.task-edit-toggle');

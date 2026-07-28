@@ -1871,6 +1871,26 @@ body {
     font-weight: 700;
 }
 
+.medication-heading-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.reminder-button {
+    padding: 8px 12px;
+    border: 1px solid #bfd0c4;
+    border-radius: 8px;
+    background: #fff;
+    color: #315844;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.reminder-button.enabled {
+    border-color: #a9c7b1;
+    background: #eaf4ec;
+}
+
 .routine-list {
     display: grid;
     margin-top: 4px;
@@ -1942,6 +1962,47 @@ body {
     color: #8a5a52;
     font-size: 10px;
     font-weight: 650;
+}
+
+.routine-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.routine-item-actions .dose-action {
+    padding: 7px 10px;
+    border-radius: 7px;
+    background: #075737;
+    color: #fff;
+}
+
+.routine-item-actions .dose-action.secondary {
+    border: 1px solid #c9d8cc;
+    background: #fff;
+    color: #315844;
+}
+
+.dose-status {
+    width: max-content;
+    padding: 3px 7px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+
+.dose-status.taken {
+    background: #e5f2e8;
+    color: #35764d;
+}
+
+.dose-status.due {
+    background: #f8e8df;
+    color: #9a513e;
+}
+
+.dose-status.upcoming {
+    background: #edf0ec;
+    color: #65776d;
 }
 
 .routine-empty {
@@ -3081,6 +3142,32 @@ body {
 
     .plan-tabs button {
         flex: 1 0 auto;
+    }
+
+    .plan-panel-heading {
+        flex-direction: column;
+    }
+
+    .medication-heading-actions {
+        width: 100%;
+    }
+
+    .medication-heading-actions button {
+        flex: 1;
+    }
+
+    .routine-item,
+    .routine-item.without-image {
+        grid-template-columns: 48px minmax(0, 1fr);
+    }
+
+    .routine-item.without-image {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .routine-item-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-end;
     }
 
     .food-stat-grid,

@@ -7,7 +7,7 @@ import requests
 import time
 import hashlib
 from collections import defaultdict, deque
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -348,6 +348,15 @@ def init_database():
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS medication_doses (
+                medication_id INTEGER NOT NULL,
+                user_id TEXT NOT NULL,
+                dose_date TEXT NOT NULL,
+                taken_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (medication_id, user_id, dose_date),
+                FOREIGN KEY (medication_id) REFERENCES medications(id)
+            );
+
         ''')
 
         response_columns = {
@@ -460,13 +469,18 @@ def get_dashboard_context():
             ''',
             (user_id, date.today().isoformat()),
         ).fetchone()
-        medications = connection.execute(
+        medication_rows = connection.execute(
             '''
-            SELECT * FROM medications
-            WHERE user_id = ?
-            ORDER BY schedule_time, id
+            SELECT medications.*, medication_doses.taken_at
+            FROM medications
+            LEFT JOIN medication_doses
+                ON medication_doses.medication_id = medications.id
+                AND medication_doses.user_id = medications.user_id
+                AND medication_doses.dose_date = ?
+            WHERE medications.user_id = ?
+            ORDER BY medications.schedule_time, medications.id
             ''',
-            (user_id,),
+            (date.today().isoformat(), user_id),
         ).fetchall()
         cosmetics = connection.execute(
             '''
@@ -479,6 +493,17 @@ def get_dashboard_context():
             ''',
             (user_id,),
         ).fetchall()
+    current_time = datetime.now().strftime('%H:%M')
+    medications = []
+    for row in medication_rows:
+        medication = dict(row)
+        if medication['taken_at']:
+            medication['dose_status'] = 'taken'
+        elif medication['schedule_time'] <= current_time:
+            medication['dose_status'] = 'due'
+        else:
+            medication['dose_status'] = 'upcoming'
+        medications.append(medication)
     ruby_response = session.pop('ruby_response', None)
     completed_count = sum(task['completed'] for task in tasks)
     nutrition_totals = {
@@ -1224,8 +1249,53 @@ def delete_medication(medication_id):
         return redirect(url_for('login'))
     with get_database() as connection:
         connection.execute(
+            'DELETE FROM medication_doses WHERE medication_id = ? AND user_id = ?',
+            (medication_id, get_user_id()),
+        )
+        connection.execute(
             'DELETE FROM medications WHERE id = ? AND user_id = ?',
             (medication_id, get_user_id()),
+        )
+    session['dashboard_active_plan'] = 'medication-plan'
+    return redirect(url_for('home'))
+
+
+@app.post('/medications/<int:medication_id>/taken')
+def mark_medication_taken(medication_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    user_id = get_user_id()
+    with get_database() as connection:
+        medication = connection.execute(
+            'SELECT id FROM medications WHERE id = ? AND user_id = ?',
+            (medication_id, user_id),
+        ).fetchone()
+        if medication:
+            connection.execute(
+                '''
+                INSERT INTO medication_doses (
+                    medication_id, user_id, dose_date, taken_at
+                ) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(medication_id, user_id, dose_date)
+                DO UPDATE SET taken_at = CURRENT_TIMESTAMP
+                ''',
+                (medication_id, user_id, date.today().isoformat()),
+            )
+    session['dashboard_active_plan'] = 'medication-plan'
+    return redirect(url_for('home'))
+
+
+@app.post('/medications/<int:medication_id>/untaken')
+def mark_medication_untaken(medication_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    with get_database() as connection:
+        connection.execute(
+            '''
+            DELETE FROM medication_doses
+            WHERE medication_id = ? AND user_id = ? AND dose_date = ?
+            ''',
+            (medication_id, get_user_id(), date.today().isoformat()),
         )
     session['dashboard_active_plan'] = 'medication-plan'
     return redirect(url_for('home'))
