@@ -1,0 +1,120 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<section class="news-feed-page">
+  <div class="container news-feed-shell">
+    <header class="news-feed-header">
+      <span class="dashboard-section-label">Wellness news</span>
+      <h1>Worth knowing today</h1>
+    </header>
+
+    <div class="news-content-layout">
+      <main class="news-stories">
+        {% if news_error %}
+        <p class="news-feed-message">{{ news_error }}</p>
+        {% elif not articles %}
+        <p class="news-feed-message">No relevant food-safety stories are available right now.</p>
+        {% else %}
+        <div class="news-stories-heading">
+          <h2>Top stories</h2>
+        </div>
+        <div class="news-grid">
+      {% for article in articles %}
+      <article id="article-{{ article.anchor }}" class="news-card {% if loop.first %}news-card-featured{% endif %}">
+        <a class="news-card-image" href="{{ article.url }}" target="_blank" rel="noopener noreferrer"
+           aria-label="Read {{ article.title }}">
+          <img src="{{ article.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        </a>
+        <div class="news-card-copy">
+          <div class="news-card-source">
+            {% if article.source_icon %}
+            <img src="{{ article.source_icon }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+            {% endif %}
+            <span>{{ article.source }}</span>
+            {% if article.published %}
+            <time>{{ article.published }}</time>
+            {% endif %}
+          </div>
+          <h2>
+            <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">{{ article.title }}</a>
+          </h2>
+          {% if article.summary %}
+          <div class="news-synopsis">
+            <p>{{ article.summary }}</p>
+          </div>
+          {% endif %}
+          <a class="news-read-link" href="{{ article.url }}" target="_blank" rel="noopener noreferrer">
+            Read original article <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+          </a>
+
+          <section class="news-comments" aria-label="Comments">
+            {% set comments = comments_by_article.get(article.id, []) %}
+            <details>
+              <summary>
+                <span><i class="bi bi-chat" aria-hidden="true"></i> Discuss</span>
+                <span>{{ comments|length }} comment{% if comments|length != 1 %}s{% endif %}</span>
+              </summary>
+              <div class="news-comment-thread">
+                {% for comment in comments %}
+                <div class="news-comment">
+                  <span class="news-comment-avatar" aria-hidden="true">
+                    {% if comment.avatar_url %}
+                    <img src="{{ comment.avatar_url }}" alt="">
+                    {% else %}
+                    {{ comment.display_name[0]|upper }}
+                    {% endif %}
+                  </span>
+                  <div>
+                    <strong>{{ comment.display_name }}</strong>
+                    <p>{{ comment.body }}</p>
+                  </div>
+                </div>
+                {% else %}
+                <p class="news-no-comments">Start the conversation.</p>
+                {% endfor %}
+                <form class="news-comment-form" action="{{ url_for('add_news_comment') }}" method="POST">
+                  <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                  <input type="hidden" name="article_id" value="{{ article.id }}">
+                  <input type="hidden" name="article_title" value="{{ article.title }}">
+                  <label class="visually-hidden" for="comment-{{ loop.index }}">Add a comment</label>
+                  <textarea id="comment-{{ loop.index }}" name="body" maxlength="500"
+                            placeholder="Share your thoughts…" required></textarea>
+                  <button type="submit">Post</button>
+                </form>
+              </div>
+            </details>
+          </section>
+        </div>
+      </article>
+      {% endfor %}
+        </div>
+        {% endif %}
+      </main>
+
+      {% if watch_items %}
+      <aside class="food-watch-section" aria-labelledby="food-watch-title">
+        <div class="food-watch-heading">
+          <h2 id="food-watch-title">5 current food recalls</h2>
+        </div>
+        <ol class="food-watch-list">
+          {% for item in watch_items %}
+          <li>
+            <span class="food-watch-number">{{ loop.index }}</span>
+            <div>
+              <strong>{{ item.name }}</strong>
+              {% if item.company %}<span>{{ item.company }}</span>{% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ol>
+        <a class="food-watch-source"
+           href="https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/enforcement-reports"
+           target="_blank" rel="noopener noreferrer">
+          FDA details <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+        </a>
+      </aside>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

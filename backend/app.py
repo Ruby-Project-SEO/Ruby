@@ -44,6 +44,8 @@ from backend.services.products import (
     search_cosmetics,
     search_medications,
 )
+from backend.services.news import get_food_safety_feed
+from backend.services.food_safety import build_food_recall_profile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = PROJECT_ROOT / 'frontend'
@@ -338,6 +340,14 @@ def init_database():
                 PRIMARY KEY (user_id, log_date)
             );
 
+            CREATE TABLE IF NOT EXISTS food_recall_dismissals (
+                food_log_id INTEGER NOT NULL,
+                user_id TEXT NOT NULL,
+                dismissed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (food_log_id, user_id),
+                FOREIGN KEY (food_log_id) REFERENCES food_log(id)
+            );
+
             CREATE TABLE IF NOT EXISTS medications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -385,6 +395,20 @@ def init_database():
                 PRIMARY KEY (medication_id, user_id, dose_date, schedule_time),
                 FOREIGN KEY (medication_id) REFERENCES medications(id)
             );
+
+            CREATE TABLE IF NOT EXISTS news_comments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                article_title TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                avatar_url TEXT,
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS news_comments_article_idx
+            ON news_comments(article_id, created_at);
 
         ''')
 
@@ -511,6 +535,10 @@ def get_dashboard_context():
             ''',
             (user_id, date.today().isoformat()),
         ).fetchone()
+        dismissed_recall_rows = connection.execute(
+            'SELECT food_log_id FROM food_recall_dismissals WHERE user_id = ?',
+            (user_id,),
+        ).fetchall()
         medication_rows = connection.execute(
             '''
             SELECT * FROM medications
@@ -598,6 +626,24 @@ def get_dashboard_context():
     water_goal_ml = 2500
     water_amount_ml = water_row['amount_ml'] if water_row else 0
     water_progress = min(100, round(water_amount_ml / water_goal_ml * 100))
+    dismissed_food_ids = {row['food_log_id'] for row in dismissed_recall_rows}
+    try:
+        recall_profile = build_food_recall_profile(food_log, dismissed_food_ids)
+    except requests.RequestException:
+        app.logger.exception('FDA food recall check failed')
+        unchecked_foods = []
+        for item in food_log:
+            food = dict(item)
+            food['recall_matches'] = []
+            food['recall_status'] = 'Recall check unavailable'
+            unchecked_foods.append(food)
+        recall_profile = {
+            'available': False,
+            'foods': unchecked_foods,
+            'score': None,
+            'status': 'Recall check unavailable',
+            'matched_count': 0,
+        }
     context = {
         'username': session.get('username'),
         'tasks': tasks,
@@ -613,7 +659,8 @@ def get_dashboard_context():
         'cosmetics': cosmetics,
         'active_plan': session.pop('dashboard_active_plan', 'food-plan'),
         'saved_recipes': saved_recipes,
-        'food_log': food_log,
+        'food_log': recall_profile['foods'],
+        'recall_profile': recall_profile,
         'auth_form_token': auth_form_token(),
         'dashboard_notice': session.pop('dashboard_notice', None),
         'dashboard_error': session.pop('dashboard_error', None),
@@ -786,6 +833,73 @@ def home():
     if not session.get('username'):
         return redirect(url_for('login'))
     return render_dashboard()
+
+@app.route('/news')
+def news_feed():
+    if not session.get('username'):
+        return redirect(url_for('login'))
+    try:
+        feed = get_food_safety_feed()
+        news_error = None
+    except (requests.RequestException, RuntimeError):
+        app.logger.exception('News feed request failed')
+        feed = {'articles': [], 'watch_items': []}
+        news_error = 'The latest stories could not be loaded right now.'
+
+    comments_by_article = defaultdict(list)
+    article_ids = [article['id'] for article in feed['articles']]
+    if article_ids:
+        placeholders = ','.join('?' for _ in article_ids)
+        with get_database() as connection:
+            comments = connection.execute(
+                f'''
+                SELECT id, article_id, display_name, avatar_url, body, created_at
+                FROM news_comments
+                WHERE article_id IN ({placeholders})
+                ORDER BY created_at ASC, id ASC
+                ''',
+                article_ids,
+            ).fetchall()
+        for comment in comments:
+            comments_by_article[comment['article_id']].append(comment)
+
+    return render_template(
+        'news_feed.html',
+        articles=feed['articles'],
+        watch_items=feed['watch_items'],
+        comments_by_article=comments_by_article,
+        news_error=news_error,
+        auth_form_token=auth_form_token(),
+    )
+
+@app.post('/news/comments')
+def add_news_comment():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+
+    article_id = request.form.get('article_id', '').strip()[:512]
+    article_title = request.form.get('article_title', '').strip()[:240]
+    body = request.form.get('body', '').strip()[:500]
+    if article_id and article_title and body:
+        with get_database() as connection:
+            connection.execute(
+                '''
+                INSERT INTO news_comments (
+                    article_id, article_title, user_id,
+                    display_name, avatar_url, body
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ''',
+                (
+                    article_id,
+                    article_title,
+                    get_user_id(),
+                    session.get('username', 'Ruby member'),
+                    session.get('avatar_url'),
+                    body,
+                ),
+            )
+    return redirect(url_for('news_feed', _anchor=f'article-{hashlib.sha1(article_id.encode()).hexdigest()[:10]}'))
 
 @app.route('/login')
 def login():
@@ -1269,21 +1383,55 @@ def delete_food_log(food_log_id):
         return redirect(url_for('login'))
     with get_database() as connection:
         connection.execute(
+            'DELETE FROM food_recall_dismissals WHERE food_log_id = ? AND user_id = ?',
+            (food_log_id, get_user_id()),
+        )
+        connection.execute(
             'DELETE FROM food_log WHERE id = ? AND user_id = ?',
             (food_log_id, get_user_id()),
         )
     return redirect(url_for('home'))
 
 
+@app.post('/nutrition/log/<int:food_log_id>/recall-safe')
+def dismiss_food_recall(food_log_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    user_id = get_user_id()
+    with get_database() as connection:
+        food = connection.execute(
+            'SELECT id FROM food_log WHERE id = ? AND user_id = ?',
+            (food_log_id, user_id),
+        ).fetchone()
+        if food:
+            connection.execute(
+                '''
+                INSERT OR REPLACE INTO food_recall_dismissals
+                    (food_log_id, user_id, dismissed_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ''',
+                (food_log_id, user_id),
+            )
+    session['dashboard_active_plan'] = 'food-plan'
+    return redirect(url_for('home'))
+
+
 @app.post('/nutrition/water')
 def update_water_log():
+    expects_json = request.headers.get('Accept') == 'application/json'
     if not session.get('username') or not valid_auth_form():
+        if expects_json:
+            return jsonify({'error': 'Authentication required'}), 401
         return redirect(url_for('login'))
     try:
         change_ml = int(request.form.get('change_ml', ''))
     except (TypeError, ValueError):
+        if expects_json:
+            return jsonify({'error': 'Invalid water amount'}), 400
         return redirect(url_for('home'))
     if change_ml not in {-250, 250}:
+        if expects_json:
+            return jsonify({'error': 'Invalid water amount'}), 400
         return redirect(url_for('home'))
 
     user_id = get_user_id()
@@ -1303,6 +1451,15 @@ def update_water_log():
             ''',
             (user_id, today, amount_ml),
         )
+    if expects_json:
+        water_goal_ml = 2500
+        return jsonify({
+            'amount_ml': amount_ml,
+            'amount_liters': round(amount_ml / 1000, 2),
+            'goal_ml': water_goal_ml,
+            'goal_liters': round(water_goal_ml / 1000, 1),
+            'progress': min(100, round(amount_ml / water_goal_ml * 100)),
+        })
     return redirect(url_for('home'))
 
 
