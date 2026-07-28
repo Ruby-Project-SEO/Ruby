@@ -948,13 +948,13 @@ def register():
 def ask_ruby():
     question = request.form.get('question', '').strip()[:1000]
     if not question:
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
 
     api_key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GENAI_KEY')
     if not api_key:
         session['ruby_error'] = 'Gemini is not configured. Set GEMINI_API_KEY and try again.'
         session['ruby_error_question'] = question
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
 
     try:
         client = genai.Client(api_key=api_key)
@@ -990,21 +990,21 @@ def ask_ruby():
             'ruby_options': options,
             'ruby_category': top_category
         }
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
     except errors.ServerError as error:
         if error.code == 503:
             session['ruby_error'] = 'Gemini is temporarily busy. Please wait a moment and try again.'
             session['ruby_error_question'] = question
-            return redirect(url_for('home'))
+            return redirect(url_for('home', _anchor='ask-ruby'))
         app.logger.exception('Gemini server request failed')
         session['ruby_error'] = 'Ruby could not answer right now. Please try again shortly.'
         session['ruby_error_question'] = question
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
     except Exception:
         app.logger.exception('Gemini request failed')
         session['ruby_error'] = 'Ruby could not answer right now. Please try again shortly.'
         session['ruby_error_question'] = question
-        return redirect(url_for('home'))
+        return redirect(url_for('home', _anchor='ask-ruby'))
 
 
 
