@@ -2396,11 +2396,7 @@ body {
     padding: 11px;
     place-items: center;
     border-radius: 50%;
-    background: conic-gradient(
-        from -25deg,
-        #b5d82d 0deg,
-        #4d9b58 360deg
-    );
+    background: #79a92f;
 }
 
 .calorie-ring::before {
@@ -2469,7 +2465,7 @@ body {
     left: 0;
     min-height: 0;
     border-radius: 9px;
-    background: linear-gradient(#73c8d5, #3f99b0);
+    background: #4d9daf;
     transition: height .25s ease;
 }
 
