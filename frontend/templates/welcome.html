@@ -6,15 +6,12 @@
             <div>
                 <span class="dashboard-label">Your wellness dashboard</span>
                 <h1><span id="typed-greeting">Good day{% if username %}, {{ username }}{% endif %}</span><span class="typing-caret" aria-hidden="true"></span></h1>
-                <p>Here’s what needs your attention today.</p>
             </div>
         </div>
 
         <div id="ask-ruby" class="dashboard-ask-heading">
-            <span class="dashboard-section-label">Ask Ruby</span>
             <div>
-                <h2>Need help with something else?</h2>
-                <p>Ask about food, medications, or personal care.</p>
+                <h2>Ask Ruby</h2>
             </div>
         </div>
 
@@ -29,7 +26,6 @@
             <section class="ruby-response {% if ruby_error %}ruby-response-error{% endif %}" aria-live="polite">
                 <div class="ruby-response-heading">
                     <span>Ruby</span>
-                    <small>AI-generated wellness information</small>
                 </div>
                 {% if ruby_answer %}
                 <p><span id="typed-ruby-response">{{ ruby_answer }}</span><span id="ruby-response-caret" class="response-typing-caret" aria-hidden="true"></span></p>
@@ -39,24 +35,22 @@
             </section>
             {% if ruby_answer and ruby_is_wellness_related %}
             <aside class="remedy-sidebar">
-                <h2>Come here first</h2>
+                <h2>Suggested next</h2>
                 <div class="remedy-links">
                     {% for category in ruby_ranking %}
                         {% if category == 'food' %}
                         <a class="{% if loop.first %}recommended-remedy{% endif %}" href="{{ url_for('recipe', search=ruby_question) }}">
-                            <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-egg-fried"></i>Food{% if loop.first %}<small>Start here</small>{% endif %}
+                            <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-egg-fried"></i>Food
                         </a>
                         {% elif category == 'drugs' %}
                         <a class="{% if loop.first %}recommended-remedy{% endif %}"
                            href="#medication-plan" data-open-plan="medication-plan">
                             <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-capsule"></i>Drugs
-                            {% if loop.first %}<small>Start here</small>{% endif %}
                         </a>
                         {% elif category == 'cosmetics' %}
                         <a class="{% if loop.first %}recommended-remedy{% endif %}"
                            href="#cosmetic-plan" data-open-plan="cosmetic-plan">
                             <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-droplet"></i>Cosmetics
-                            {% if loop.first %}<small>Start here</small>{% endif %}
                         </a>
                         {% endif %}
                     {% endfor %}
@@ -69,7 +63,6 @@
                         <span><i class="bi bi-stars"></i> Suggested for you</span>
                         <h2>Top {{ ruby_category|capitalize }} Options</h2>
                     </div>
-                    <p>{{ ruby_options|length }} results</p>
                 </div>
                 {% if ruby_category == 'food' %}
                 <form id="food-selection-form" action="{{ url_for('recipe') }}" method="POST">
@@ -133,7 +126,6 @@
                 <div>
                     <span class="dashboard-section-label">Today</span>
                     <h2>Your plan</h2>
-                    <p>One place for nutrition, schedules, routines, and safety.</p>
                 </div>
             </div>
 
@@ -165,7 +157,6 @@
                 <div class="plan-panel-heading">
                     <div>
                         <h3>Food overview</h3>
-                        <p>Today’s nutrition and food-safety picture.</p>
                     </div>
                     <span class="plan-setup-status">
                         {% if food_log %}{{ food_log|length }} item{% if food_log|length != 1 %}s{% endif %} logged
@@ -189,6 +180,12 @@
                                 </div>
                                 {% for recipe in saved_recipes[:3] %}
                                 <div class="saved-food-row">
+                                    {% if recipe.image %}
+                                    <img class="saved-recipe-image"
+                                         src="{{ recipe.image }}"
+                                         alt=""
+                                         loading="lazy">
+                                    {% endif %}
                                     <span>{{ recipe.title }}</span>
                                     <form action="{{ url_for('log_saved_recipe', saved_recipe_id=recipe.id) }}" method="POST">
                                         <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
@@ -208,14 +205,42 @@
                         <section class="today-food-log">
                             <span class="plan-block-label">Logged today</span>
                             {% for item in food_log %}
-                            <div>
-                                <span>{{ item.title }}</span>
-                                <small>{{ item.calories|round|int }} cal</small>
-                                <form action="{{ url_for('delete_food_log', food_log_id=item.id) }}" method="POST">
-                                    <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
-                                    <button type="submit" aria-label="Remove {{ item.title }} from today">Remove</button>
-                                </form>
-                            </div>
+                            <article class="food-log-item">
+                                <div class="food-log-row">
+                                    <div class="food-log-name">
+                                        <span>{{ item.title }}</span>
+                                        {% if not item.recall_matches %}
+                                        <small class="food-safety-clear">
+                                            FDA: {{ 'checked by you' if item.recall_dismissed else 'no current match' }}
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                    <small>{{ item.calories|round|int }} cal</small>
+                                    <form action="{{ url_for('delete_food_log', food_log_id=item.id) }}" method="POST">
+                                        <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                        <button type="submit" aria-label="Remove {{ item.title }} from today">Remove</button>
+                                    </form>
+                                </div>
+                                {% if item.recall_matches %}
+                                <details class="food-recall-details">
+                                    <summary>Possible FDA recall. Check package</summary>
+                                    {% set match = item.recall_matches[0] %}
+                                    <div class="food-recall-match">
+                                        <strong>{{ match.company or 'FDA recall record' }}</strong>
+                                        <span>{{ match.product }}</span>
+                                        <p>{{ match.reason }}</p>
+                                    </div>
+                                    <a href="https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/enforcement-reports"
+                                       target="_blank" rel="noopener noreferrer">FDA details</a>
+                                    <form class="recall-safe-form"
+                                          action="{{ url_for('dismiss_food_recall', food_log_id=item.id) }}"
+                                          method="POST">
+                                        <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                        <button type="submit">Not my product</button>
+                                    </form>
+                                </details>
+                                {% endif %}
+                            </article>
                             {% endfor %}
                         </section>
                         {% endif %}
@@ -267,10 +292,7 @@
                                 </label>
                                 <button type="submit">Save targets</button>
                             </form>
-                            <small>
-                                Ruby provides a rough adult maintenance estimate, not medical advice.
-                                A manual target always overrides it.
-                            </small>
+                            <small>Calorie targets are estimates.</small>
                         </details>
                     </div>
 
@@ -284,21 +306,22 @@
                                     <span>{% if calorie_target %}of {{ calorie_target }} cal{% else %}calories{% endif %}</span>
                                 </div>
                             </div>
-                            <section class="water-gauge"
+                            <section class="water-gauge{% if water_progress >= 100 %} water-full{% endif %}"
                                      aria-label="{{ water_amount_ml }} of {{ water_goal_ml }} milliliters of water">
                                 <span class="water-gauge-label">Water</span>
                                 <div class="water-bar">
-                                    <span style="height: {{ water_progress }}%"></span>
+                                    <span id="water-level" style="height: {{ water_progress }}%"></span>
                                 </div>
-                                <strong>{{ (water_amount_ml / 1000)|round(2) }} L</strong>
+                                <span class="water-spill" aria-hidden="true"></span>
+                                <strong id="water-amount">{{ (water_amount_ml / 1000)|round(2) }} L</strong>
                                 <small>of {{ (water_goal_ml / 1000)|round(1) }} L</small>
                                 <div class="water-controls">
-                                    <form action="{{ url_for('update_water_log') }}" method="POST">
+                                    <form class="water-update-form" action="{{ url_for('update_water_log') }}" method="POST">
                                         <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
                                         <input type="hidden" name="change_ml" value="-250">
                                         <button type="submit" aria-label="Remove one glass of water">−</button>
                                     </form>
-                                    <form action="{{ url_for('update_water_log') }}" method="POST">
+                                    <form class="water-update-form" action="{{ url_for('update_water_log') }}" method="POST">
                                         <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
                                         <input type="hidden" name="change_ml" value="250">
                                         <button type="submit" aria-label="Add one 250 milliliter glass of water">+</button>
@@ -329,12 +352,11 @@
                                 <span>Vitamin D <b>{{ nutrition_totals.vitamin_d_mcg|default(0) }} mcg</b></span>
                             </div>
                         </section>
-                        <section class="nutrition-safety-row">
-                            <div>
-                                <span class="plan-block-label">Food safety</span>
-                                <strong>Monitoring comes next</strong>
-                            </div>
-                            <p>Recall data will be matched to specific saved products, not generic meals.</p>
+                        <section class="recall-profile-score"
+                                 aria-label="FDA recall score {{ recall_profile.score if recall_profile.score is not none else 'unavailable' }}">
+                            <span class="plan-block-label">Food safety</span>
+                            <strong>{{ recall_profile.status }}</strong>
+                            <b>{% if recall_profile.score is not none %}{{ recall_profile.score }}{% else %}—{% endif %}</b>
                         </section>
                     </aside>
                 </div>
@@ -346,7 +368,6 @@
                 <div class="plan-panel-heading">
                     <div>
                         <h3>Medication schedule</h3>
-                        <p>What’s due today and whether anything needs attention.</p>
                     </div>
                     <div class="medication-heading-actions">
                         <button id="enable-medication-reminders" class="reminder-button" type="button">
@@ -420,7 +441,6 @@
                     {% else %}
                     <div class="routine-empty">
                         <strong>No medications scheduled</strong>
-                        <p>Add a medication to see it here in time order.</p>
                     </div>
                     {% endfor %}
                 </div>
@@ -432,7 +452,6 @@
                 <div class="plan-panel-heading">
                     <div>
                         <h3>Cosmetic routine</h3>
-                        <p>Your personal-care steps and product safety.</p>
                     </div>
                     <button id="open-cosmetic-search" class="plan-add-button" type="button">
                         Add cosmetic
@@ -463,7 +482,6 @@
                     {% else %}
                     <div class="routine-empty">
                         <strong>No cosmetic steps scheduled</strong>
-                        <p>Add a product to build your morning or evening routine.</p>
                     </div>
                     {% endfor %}
                 </div>
@@ -473,9 +491,7 @@
         <dialog id="food-search-dialog" class="food-search-dialog">
             <div class="food-dialog-header">
                 <div>
-                    <span class="dashboard-section-label">Add food</span>
                     <h2>What did you eat?</h2>
-                    <p>Search verified USDA nutrition data, then enter your amount.</p>
                 </div>
                 <button id="close-food-search" type="button" aria-label="Close food search">Close</button>
             </div>
@@ -486,9 +502,7 @@
                     <input id="usda-food-query" type="search"
                            placeholder="Try chicken breast, rice, yogurt..."
                            autocomplete="off">
-                <p id="food-search-status" class="food-search-status">
-                    Enter at least two letters to search.
-                </p>
+                <p id="food-search-status" class="food-search-status"></p>
                 <div id="usda-food-results" class="usda-food-results" role="listbox"></div>
             </div>
 
@@ -526,9 +540,7 @@
         <dialog id="medication-search-dialog" class="food-search-dialog product-search-dialog">
             <div class="food-dialog-header">
                 <div>
-                    <span class="dashboard-section-label">Add medication</span>
                     <h2>What do you take?</h2>
-                    <p>Search normalized RxNorm medication records.</p>
                 </div>
                 <button class="close-product-dialog" type="button">Close</button>
             </div>
@@ -538,9 +550,7 @@
                     <input class="product-query" type="search"
                            placeholder="Try metformin, lisinopril..." autocomplete="off">
                 </label>
-                <p class="food-search-status product-search-status">
-                    Enter at least two letters to search.
-                </p>
+                <p class="food-search-status product-search-status"></p>
                 <div class="usda-food-results product-results" role="listbox"></div>
             </div>
             <form class="food-amount-form product-selection-form"
@@ -556,7 +566,6 @@
                 <div class="selected-food-copy">
                     <span>Selected medication</span>
                     <h3 class="selected-product-name"></h3>
-                    <p>Set how often and how long you need to take it.</p>
                 </div>
                 <div class="food-amount-fields">
                     <label>
@@ -603,9 +612,7 @@
         <dialog id="cosmetic-search-dialog" class="food-search-dialog product-search-dialog">
             <div class="food-dialog-header">
                 <div>
-                    <span class="dashboard-section-label">Add cosmetic</span>
                     <h2>What product do you use?</h2>
-                    <p>Search community-contributed product and brand records.</p>
                 </div>
                 <button class="close-product-dialog" type="button">Close</button>
             </div>
@@ -615,9 +622,7 @@
                     <input class="product-query" type="search"
                            placeholder="Try CeraVe cleanser, sunscreen..." autocomplete="off">
                 </label>
-                <p class="food-search-status product-search-status">
-                    Enter at least two letters to search.
-                </p>
+                <p class="food-search-status product-search-status"></p>
                 <div class="usda-food-results product-results" role="listbox"></div>
             </div>
             <form class="food-amount-form product-selection-form"
@@ -748,6 +753,42 @@
         });
     });
 
+    const waterGauge = document.querySelector('.water-gauge');
+    const waterLevel = document.getElementById('water-level');
+    const waterAmount = document.getElementById('water-amount');
+
+    document.querySelectorAll('.water-update-form').forEach((form) => {
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const button = form.querySelector('button');
+            button.disabled = true;
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {'Accept': 'application/json'},
+                    body: new FormData(form),
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Water update failed');
+
+                waterLevel.style.height = `${data.progress}%`;
+                waterAmount.textContent = `${data.amount_liters} L`;
+                waterGauge.classList.toggle('water-full', data.progress >= 100);
+                waterGauge.setAttribute(
+                    'aria-label',
+                    `${data.amount_ml} of ${data.goal_ml} milliliters of water`
+                );
+                waterGauge.classList.remove('water-updated');
+                void waterGauge.offsetWidth;
+                waterGauge.classList.add('water-updated');
+            } catch (error) {
+                window.alert('Water could not be updated. Please try again.');
+            } finally {
+                button.disabled = false;
+            }
+        });
+    });
+
     const foodDialog = document.getElementById('food-search-dialog');
     const openFoodSearch = document.getElementById('open-food-search');
     const closeFoodSearch = document.getElementById('close-food-search');
@@ -856,7 +897,7 @@
         const query = foodQuery.value.trim();
         foodResults.replaceChildren();
         if (query.length < 2) {
-            foodSearchStatus.textContent = 'Enter at least two letters to search.';
+            foodSearchStatus.textContent = 'Type 2+ letters.';
             return;
         }
         foodSearchStatus.textContent = 'Searching…';
@@ -1038,7 +1079,7 @@
             const query = queryInput.value.trim();
             results.replaceChildren();
             if (query.length < 2) {
-                status.textContent = 'Enter at least two letters to search.';
+                status.textContent = 'Type 2+ letters.';
                 return;
             }
             status.textContent = 'Searching…';
