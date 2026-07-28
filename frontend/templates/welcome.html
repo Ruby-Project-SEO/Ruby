@@ -352,10 +352,7 @@
                 </div>
                 <div class="routine-list">
                     {% for item in medications %}
-                    <article class="routine-item medication-dose-item {% if not item.logo_url %}without-image{% endif %}"
-                             data-medication-name="{{ item.name }}"
-                             data-schedule-time="{{ item.schedule_time }}"
-                             data-dose-status="{{ item.dose_status }}">
+                    <article class="routine-item medication-card {% if not item.logo_url %}without-image{% endif %}">
                         {% if item.logo_url %}
                         <span class="routine-product-image">
                             <img src="{{ item.logo_url }}" alt="{{ item.labeler or item.name }} logo"
@@ -366,32 +363,47 @@
                             <strong>{{ item.name }}</strong>
                             <span>
                                 {{ item.labeler or 'Labeler not listed' }} ·
-                                {{ item.strength or 'Strength not specified' }} ·
-                                {{ item.schedule_time }}
+                                {{ item.strength or 'Strength not specified' }}
                             </span>
-                            <small class="dose-status {{ item.dose_status }}">
-                                {% if item.dose_status == 'taken' %}
-                                Taken today
-                                {% elif item.dose_status == 'due' %}
-                                Due now
+                            <small>
+                                {% if item.start_date and item.end_date %}
+                                {{ item.start_date }} through {{ item.end_date }}
                                 {% else %}
-                                Upcoming at {{ item.schedule_time }}
+                                Ongoing schedule
                                 {% endif %}
                             </small>
                             <small>{{ item.safety_note }}</small>
                         </div>
-                        <div class="routine-item-actions">
-                            {% if item.dose_status == 'taken' %}
-                            <form action="{{ url_for('mark_medication_untaken', medication_id=item.id) }}" method="POST">
-                                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
-                                <button class="dose-action secondary" type="submit">Undo</button>
-                            </form>
-                            {% else %}
-                            <form action="{{ url_for('mark_medication_taken', medication_id=item.id) }}" method="POST">
-                                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
-                                <button class="dose-action" type="submit">Mark taken</button>
-                            </form>
-                            {% endif %}
+                        <div class="medication-dose-list">
+                            {% for dose in item.doses %}
+                            <div class="medication-dose-row"
+                                 data-medication-name="{{ item.name }}"
+                                 data-schedule-time="{{ dose.schedule_time }}"
+                                 data-dose-status="{{ dose.dose_status }}">
+                                <span>{{ dose.schedule_time }}</span>
+                                <small class="dose-status {{ dose.dose_status }}">
+                                    {% if dose.dose_status == 'taken' %}Taken
+                                    {% elif dose.dose_status == 'due' %}Due now
+                                    {% elif dose.dose_status == 'inactive' %}Not active
+                                    {% else %}Upcoming{% endif %}
+                                </small>
+                                {% if dose.dose_status == 'taken' %}
+                                <form action="{{ url_for('mark_medication_untaken', medication_id=item.id) }}" method="POST">
+                                    <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                    <input type="hidden" name="schedule_time" value="{{ dose.schedule_time }}">
+                                    <button class="dose-action secondary" type="submit">Undo</button>
+                                </form>
+                                {% elif dose.dose_status != 'inactive' %}
+                                <form action="{{ url_for('mark_medication_taken', medication_id=item.id) }}" method="POST">
+                                    <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                    <input type="hidden" name="schedule_time" value="{{ dose.schedule_time }}">
+                                    <button class="dose-action" type="submit">Mark taken</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="routine-item-actions medication-remove-action">
                             <form action="{{ url_for('delete_medication', medication_id=item.id) }}" method="POST">
                                 <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
                                 <button type="submit" aria-label="Remove {{ item.name }}">Remove</button>
@@ -537,7 +549,7 @@
                 <div class="selected-food-copy">
                     <span>Selected medication</span>
                     <h3 class="selected-product-name"></h3>
-                    <p>Confirm the strength and daily time.</p>
+                    <p>Set how often and how long you need to take it.</p>
                 </div>
                 <div class="food-amount-fields">
                     <label>
@@ -545,8 +557,36 @@
                         <select class="product-option" name="strength"></select>
                     </label>
                     <label>
-                        <span>Time</span>
-                        <input type="time" name="schedule_time" value="08:00" required>
+                        <span>Frequency</span>
+                        <select class="medication-frequency">
+                            <option value="1">Once daily</option>
+                            <option value="2">Twice daily</option>
+                            <option value="3">Three times daily</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="medication-time-fields">
+                    <label>
+                        <span>First dose</span>
+                        <input type="time" name="schedule_times" value="08:00" required>
+                    </label>
+                    <label>
+                        <span>Second dose</span>
+                        <input type="time" name="schedule_times" value="20:00" disabled required>
+                    </label>
+                    <label>
+                        <span>Third dose</span>
+                        <input type="time" name="schedule_times" value="14:00" disabled required>
+                    </label>
+                </div>
+                <div class="food-amount-fields medication-date-fields">
+                    <label>
+                        <span>Start date</span>
+                        <input class="medication-start-date" type="date" name="start_date" required>
+                    </label>
+                    <label>
+                        <span>End date</span>
+                        <input class="medication-end-date" type="date" name="end_date" required>
                     </label>
                 </div>
                 <button class="confirm-food-add" type="submit">Add medication</button>
@@ -846,6 +886,38 @@
         const backButton = dialog.querySelector('.change-selected-product');
         let searchTimer;
 
+        if (kind === 'medication') {
+            const frequency = selectionForm.querySelector('.medication-frequency');
+            const timeInputs = [...selectionForm.querySelectorAll(
+                '.medication-time-fields input'
+            )];
+            const startDate = selectionForm.querySelector('.medication-start-date');
+            const endDate = selectionForm.querySelector('.medication-end-date');
+            const updateFrequency = () => {
+                const count = Number(frequency.value);
+                timeInputs.forEach((input, index) => {
+                    input.disabled = index >= count;
+                    input.closest('label').hidden = index >= count;
+                });
+            };
+            frequency.addEventListener('change', updateFrequency);
+            updateFrequency();
+            const today = new Date();
+            const end = new Date(today);
+            end.setDate(end.getDate() + 29);
+            const formatDateInput = (value) => [
+                value.getFullYear(),
+                String(value.getMonth() + 1).padStart(2, '0'),
+                String(value.getDate()).padStart(2, '0'),
+            ].join('-');
+            startDate.value = formatDateInput(today);
+            endDate.value = formatDateInput(end);
+            startDate.addEventListener('change', () => {
+                endDate.min = startDate.value;
+                if (endDate.value < startDate.value) endDate.value = startDate.value;
+            });
+        }
+
         const showSearch = () => {
             searchStep.hidden = false;
             selectionForm.hidden = true;
@@ -984,7 +1056,7 @@
     });
 
     const reminderButton = document.getElementById('enable-medication-reminders');
-    const medicationDoseItems = [...document.querySelectorAll('.medication-dose-item')];
+    const medicationDoseItems = [...document.querySelectorAll('.medication-dose-row')];
     const reminderPreferenceKey = 'ruby-medication-reminders';
 
     const remindersEnabled = () => (
@@ -1014,7 +1086,7 @@
             String(now.getDate()).padStart(2, '0'),
         ].join('-');
         medicationDoseItems.forEach((item) => {
-            if (item.dataset.doseStatus === 'taken') return;
+            if (['taken', 'inactive'].includes(item.dataset.doseStatus)) return;
             if (currentTime < item.dataset.scheduleTime) return;
             const notificationKey = [
                 'ruby-dose-notified',

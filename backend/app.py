@@ -1,5 +1,6 @@
 import os
 import git
+import json
 import secrets
 import shutil
 import sqlite3
@@ -331,6 +332,9 @@ def init_database():
                 logo_url TEXT,
                 strength TEXT,
                 schedule_time TEXT NOT NULL,
+                schedule_times TEXT,
+                start_date TEXT,
+                end_date TEXT,
                 safety_note TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
@@ -354,6 +358,16 @@ def init_database():
                 dose_date TEXT NOT NULL,
                 taken_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (medication_id, user_id, dose_date),
+                FOREIGN KEY (medication_id) REFERENCES medications(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS medication_dose_events (
+                medication_id INTEGER NOT NULL,
+                user_id TEXT NOT NULL,
+                dose_date TEXT NOT NULL,
+                schedule_time TEXT NOT NULL,
+                taken_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (medication_id, user_id, dose_date, schedule_time),
                 FOREIGN KEY (medication_id) REFERENCES medications(id)
             );
 
@@ -384,6 +398,19 @@ def init_database():
             connection.execute('ALTER TABLE medications ADD COLUMN labeler TEXT')
         if 'logo_url' not in medication_columns:
             connection.execute('ALTER TABLE medications ADD COLUMN logo_url TEXT')
+        if 'schedule_times' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN schedule_times TEXT')
+        if 'start_date' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN start_date TEXT')
+        if 'end_date' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN end_date TEXT')
+        connection.execute(
+            '''
+            UPDATE medications
+            SET schedule_times = '["' || schedule_time || '"]'
+            WHERE schedule_times IS NULL OR schedule_times = ''
+            '''
+        )
 
 def get_user_id():
     if 'user_id' not in session:
@@ -471,16 +498,19 @@ def get_dashboard_context():
         ).fetchone()
         medication_rows = connection.execute(
             '''
-            SELECT medications.*, medication_doses.taken_at
-            FROM medications
-            LEFT JOIN medication_doses
-                ON medication_doses.medication_id = medications.id
-                AND medication_doses.user_id = medications.user_id
-                AND medication_doses.dose_date = ?
-            WHERE medications.user_id = ?
+            SELECT * FROM medications
+            WHERE user_id = ?
             ORDER BY medications.schedule_time, medications.id
             ''',
-            (date.today().isoformat(), user_id),
+            (user_id,),
+        ).fetchall()
+        dose_events = connection.execute(
+            '''
+            SELECT medication_id, schedule_time, taken_at
+            FROM medication_dose_events
+            WHERE user_id = ? AND dose_date = ?
+            ''',
+            (user_id, date.today().isoformat()),
         ).fetchall()
         cosmetics = connection.execute(
             '''
@@ -493,16 +523,42 @@ def get_dashboard_context():
             ''',
             (user_id,),
         ).fetchall()
+    current_date = date.today().isoformat()
     current_time = datetime.now().strftime('%H:%M')
+    taken_doses = {
+        (row['medication_id'], row['schedule_time']): row['taken_at']
+        for row in dose_events
+    }
     medications = []
     for row in medication_rows:
         medication = dict(row)
-        if medication['taken_at']:
-            medication['dose_status'] = 'taken'
-        elif medication['schedule_time'] <= current_time:
-            medication['dose_status'] = 'due'
-        else:
-            medication['dose_status'] = 'upcoming'
+        try:
+            schedule_times = json.loads(medication['schedule_times'] or '[]')
+        except (TypeError, ValueError):
+            schedule_times = []
+        if not schedule_times:
+            schedule_times = [medication['schedule_time']]
+        medication['schedule_times_list'] = schedule_times
+        medication['is_active'] = (
+            (not medication['start_date'] or medication['start_date'] <= current_date)
+            and (not medication['end_date'] or medication['end_date'] >= current_date)
+        )
+        medication['doses'] = []
+        for scheduled_time in schedule_times:
+            taken_at = taken_doses.get((medication['id'], scheduled_time))
+            if not medication['is_active']:
+                dose_status = 'inactive'
+            elif taken_at:
+                dose_status = 'taken'
+            elif scheduled_time <= current_time:
+                dose_status = 'due'
+            else:
+                dose_status = 'upcoming'
+            medication['doses'].append({
+                'schedule_time': scheduled_time,
+                'taken_at': taken_at,
+                'dose_status': dose_status,
+            })
         medications.append(medication)
     ruby_response = session.pop('ruby_response', None)
     completed_count = sum(task['completed'] for task in tasks)
@@ -1208,24 +1264,41 @@ def add_medication():
     strength = request.form.get('strength', '').strip()[:100]
     labeler = request.form.get('labeler', '').strip()[:160]
     logo_url = request.form.get('logo_url', '').strip()[:500]
-    schedule_time = request.form.get('schedule_time', '').strip()
-    if not name or not schedule_time:
-        session['dashboard_error'] = 'Choose a medication and schedule time.'
+    raw_schedule_times = request.form.getlist('schedule_times')
+    start_date = request.form.get('start_date', '').strip()
+    end_date = request.form.get('end_date', '').strip()
+    if not name or not raw_schedule_times or not start_date or not end_date:
+        session['dashboard_error'] = 'Choose medication times and treatment dates.'
         return redirect(url_for('home'))
     try:
-        parsed_time = time.strptime(schedule_time, '%H:%M')
-        schedule_time = time.strftime('%H:%M', parsed_time)
+        schedule_times = []
+        for raw_time in raw_schedule_times[:3]:
+            parsed_time = time.strptime(raw_time.strip(), '%H:%M')
+            normalized_time = time.strftime('%H:%M', parsed_time)
+            if normalized_time not in schedule_times:
+                schedule_times.append(normalized_time)
+        parsed_start = date.fromisoformat(start_date)
+        parsed_end = date.fromisoformat(end_date)
     except ValueError:
-        session['dashboard_error'] = 'Choose a valid medication time.'
+        session['dashboard_error'] = 'Choose valid medication times and dates.'
         return redirect(url_for('home'))
+    if (
+        not schedule_times
+        or parsed_end < parsed_start
+        or (parsed_end - parsed_start).days > 3650
+    ):
+        session['dashboard_error'] = 'Check the treatment schedule and date range.'
+        return redirect(url_for('home'))
+    schedule_times.sort()
+    schedule_time = schedule_times[0]
     safety_note = medication_safety_note(name)
     with get_database() as connection:
         connection.execute(
             '''
             INSERT INTO medications (
                 user_id, rxcui, name, labeler, logo_url, strength,
-                schedule_time, safety_note
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                schedule_time, schedule_times, start_date, end_date, safety_note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 get_user_id(),
@@ -1235,6 +1308,9 @@ def add_medication():
                 logo_url,
                 strength,
                 schedule_time,
+                json.dumps(schedule_times),
+                start_date,
+                end_date,
                 safety_note,
             ),
         )
@@ -1253,6 +1329,10 @@ def delete_medication(medication_id):
             (medication_id, get_user_id()),
         )
         connection.execute(
+            'DELETE FROM medication_dose_events WHERE medication_id = ? AND user_id = ?',
+            (medication_id, get_user_id()),
+        )
+        connection.execute(
             'DELETE FROM medications WHERE id = ? AND user_id = ?',
             (medication_id, get_user_id()),
         )
@@ -1265,21 +1345,31 @@ def mark_medication_taken(medication_id):
     if not session.get('username') or not valid_auth_form():
         return redirect(url_for('login'))
     user_id = get_user_id()
+    schedule_time = request.form.get('schedule_time', '').strip()
     with get_database() as connection:
         medication = connection.execute(
-            'SELECT id FROM medications WHERE id = ? AND user_id = ?',
+            'SELECT schedule_times FROM medications WHERE id = ? AND user_id = ?',
             (medication_id, user_id),
         ).fetchone()
-        if medication:
+        try:
+            valid_times = json.loads(medication['schedule_times']) if medication else []
+        except (TypeError, ValueError):
+            valid_times = []
+        if medication and schedule_time in valid_times:
             connection.execute(
                 '''
-                INSERT INTO medication_doses (
-                    medication_id, user_id, dose_date, taken_at
-                ) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(medication_id, user_id, dose_date)
+                INSERT INTO medication_dose_events (
+                    medication_id, user_id, dose_date, schedule_time, taken_at
+                ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(medication_id, user_id, dose_date, schedule_time)
                 DO UPDATE SET taken_at = CURRENT_TIMESTAMP
                 ''',
-                (medication_id, user_id, date.today().isoformat()),
+                (
+                    medication_id,
+                    user_id,
+                    date.today().isoformat(),
+                    schedule_time,
+                ),
             )
     session['dashboard_active_plan'] = 'medication-plan'
     return redirect(url_for('home'))
@@ -1292,10 +1382,16 @@ def mark_medication_untaken(medication_id):
     with get_database() as connection:
         connection.execute(
             '''
-            DELETE FROM medication_doses
+            DELETE FROM medication_dose_events
             WHERE medication_id = ? AND user_id = ? AND dose_date = ?
+                AND schedule_time = ?
             ''',
-            (medication_id, get_user_id(), date.today().isoformat()),
+            (
+                medication_id,
+                get_user_id(),
+                date.today().isoformat(),
+                request.form.get('schedule_time', '').strip(),
+            ),
         )
     session['dashboard_active_plan'] = 'medication-plan'
     return redirect(url_for('home'))

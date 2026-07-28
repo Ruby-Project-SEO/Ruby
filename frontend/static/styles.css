@@ -1909,6 +1909,54 @@ body {
     grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.medication-card {
+    align-items: start;
+}
+
+.medication-card > .medication-dose-list {
+    grid-column: 2 / -1;
+}
+
+.medication-card.without-image > .medication-dose-list {
+    grid-column: 1 / -1;
+}
+
+.medication-card > .medication-remove-action {
+    grid-column: 3;
+    grid-row: 1;
+}
+
+.medication-card.without-image > .medication-remove-action {
+    grid-column: 2;
+}
+
+.medication-dose-list {
+    display: grid;
+    gap: 7px;
+    width: 100%;
+    padding-top: 8px;
+}
+
+.medication-dose-row {
+    display: grid;
+    grid-template-columns: 52px minmax(70px, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f5f7f4;
+}
+
+.medication-dose-row > span {
+    color: #315844;
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.medication-dose-row form {
+    margin: 0;
+}
+
 .routine-source-badge,
 .routine-product-image {
     display: grid;
@@ -2003,6 +2051,44 @@ body {
 .dose-status.upcoming {
     background: #edf0ec;
     color: #65776d;
+}
+
+.dose-status.inactive {
+    background: #f1f1ef;
+    color: #858a87;
+}
+
+.medication-time-fields {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.medication-time-fields label {
+    display: grid;
+    gap: 5px;
+}
+
+.medication-time-fields label > span {
+    color: #718078;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.medication-time-fields input {
+    width: 100%;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid #dce2da;
+    border-radius: 8px;
+    color: #315844;
+}
+
+.medication-date-fields {
+    margin-top: 12px;
 }
 
 .routine-empty {
@@ -3168,6 +3254,21 @@ body {
     .routine-item-actions {
         grid-column: 1 / -1;
         justify-content: flex-end;
+    }
+
+    .medication-card > .medication-dose-list,
+    .medication-card.without-image > .medication-dose-list {
+        grid-column: 1 / -1;
+    }
+
+    .medication-card > .medication-remove-action,
+    .medication-card.without-image > .medication-remove-action {
+        grid-column: 1 / -1;
+        grid-row: auto;
+    }
+
+    .medication-time-fields {
+        grid-template-columns: 1fr;
     }
 
     .food-stat-grid,
