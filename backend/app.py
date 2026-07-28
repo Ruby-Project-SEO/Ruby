@@ -575,7 +575,7 @@ def get_dashboard_context():
                 'dose_status': dose_status,
             })
         medications.append(medication)
-    ruby_response = session.pop('ruby_response', None)
+    ruby_response = session.get('ruby_response')
     completed_count = sum(task['completed'] for task in tasks)
     nutrition_totals = {
         key: round(sum(float(item[key]) for item in food_log), 1)
