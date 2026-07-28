@@ -39,6 +39,12 @@ from backend.services.nutrition import (
     get_usda_food,
     search_usda_foods,
 )
+from backend.services.products import (
+    cosmetic_safety_note,
+    medication_safety_note,
+    search_cosmetics,
+    search_medications,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = PROJECT_ROOT / 'frontend'
@@ -316,6 +322,30 @@ def init_database():
                 PRIMARY KEY (user_id, log_date)
             );
 
+            CREATE TABLE IF NOT EXISTS medications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                rxcui TEXT,
+                name TEXT NOT NULL,
+                strength TEXT,
+                schedule_time TEXT NOT NULL,
+                safety_note TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS cosmetic_routine (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                product_code TEXT,
+                name TEXT NOT NULL,
+                brand TEXT,
+                image_url TEXT,
+                logo_url TEXT,
+                routine_time TEXT NOT NULL,
+                safety_note TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
         ''')
 
         response_columns = {
@@ -421,6 +451,25 @@ def get_dashboard_context():
             ''',
             (user_id, date.today().isoformat()),
         ).fetchone()
+        medications = connection.execute(
+            '''
+            SELECT * FROM medications
+            WHERE user_id = ?
+            ORDER BY schedule_time, id
+            ''',
+            (user_id,),
+        ).fetchall()
+        cosmetics = connection.execute(
+            '''
+            SELECT * FROM cosmetic_routine
+            WHERE user_id = ?
+            ORDER BY CASE routine_time
+                WHEN 'morning' THEN 1
+                WHEN 'afternoon' THEN 2
+                ELSE 3 END, id
+            ''',
+            (user_id,),
+        ).fetchall()
     ruby_response = session.pop('ruby_response', None)
     completed_count = sum(task['completed'] for task in tasks)
     nutrition_totals = {
@@ -455,6 +504,9 @@ def get_dashboard_context():
         'water_amount_ml': water_amount_ml,
         'water_goal_ml': water_goal_ml,
         'water_progress': water_progress,
+        'medications': medications,
+        'cosmetics': cosmetics,
+        'active_plan': session.pop('dashboard_active_plan', 'food-plan'),
         'saved_recipes': saved_recipes,
         'food_log': food_log,
         'auth_form_token': auth_form_token(),
@@ -1094,6 +1146,131 @@ def update_water_log():
             ''',
             (user_id, today, amount_ml),
         )
+    return redirect(url_for('home'))
+
+
+@app.get('/api/medications')
+def medication_search():
+    if not session.get('username'):
+        return jsonify({'error': 'Authentication required'}), 401
+    query = request.args.get('q', '').strip()[:80]
+    if len(query) < 2:
+        return jsonify({'results': []})
+    if food_search_rate_limited():
+        return jsonify({'error': 'Too many searches. Please wait a minute.'}), 429
+    try:
+        return jsonify({'results': search_medications(query)})
+    except requests.RequestException:
+        app.logger.exception('Medication search failed')
+        return jsonify({'error': 'Medication search is temporarily unavailable.'}), 502
+
+
+@app.post('/medications')
+def add_medication():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    name = request.form.get('name', '').strip()[:160]
+    rxcui = request.form.get('rxcui', '').strip()[:30]
+    strength = request.form.get('strength', '').strip()[:100]
+    schedule_time = request.form.get('schedule_time', '').strip()
+    if not name or not schedule_time:
+        session['dashboard_error'] = 'Choose a medication and schedule time.'
+        return redirect(url_for('home'))
+    try:
+        parsed_time = time.strptime(schedule_time, '%H:%M')
+        schedule_time = time.strftime('%H:%M', parsed_time)
+    except ValueError:
+        session['dashboard_error'] = 'Choose a valid medication time.'
+        return redirect(url_for('home'))
+    safety_note = medication_safety_note(name)
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO medications (
+                user_id, rxcui, name, strength, schedule_time, safety_note
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ''',
+            (get_user_id(), rxcui, name, strength, schedule_time, safety_note),
+        )
+    session['dashboard_active_plan'] = 'medication-plan'
+    session['dashboard_notice'] = f'Added {name} to your medication schedule.'
+    return redirect(url_for('home'))
+
+
+@app.post('/medications/<int:medication_id>/delete')
+def delete_medication(medication_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    with get_database() as connection:
+        connection.execute(
+            'DELETE FROM medications WHERE id = ? AND user_id = ?',
+            (medication_id, get_user_id()),
+        )
+    session['dashboard_active_plan'] = 'medication-plan'
+    return redirect(url_for('home'))
+
+
+@app.get('/api/cosmetics')
+def cosmetic_search():
+    if not session.get('username'):
+        return jsonify({'error': 'Authentication required'}), 401
+    query = request.args.get('q', '').strip()[:80]
+    if len(query) < 2:
+        return jsonify({'results': []})
+    if food_search_rate_limited():
+        return jsonify({'error': 'Too many searches. Please wait a minute.'}), 429
+    try:
+        return jsonify({'results': search_cosmetics(query)})
+    except requests.RequestException:
+        app.logger.exception('Cosmetic search failed')
+        return jsonify({'error': 'Cosmetic search is temporarily unavailable.'}), 502
+
+
+@app.post('/cosmetics')
+def add_cosmetic():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    name = request.form.get('name', '').strip()[:160]
+    brand = request.form.get('brand', '').strip()[:120]
+    routine_time = request.form.get('routine_time', '').strip()
+    if not name or routine_time not in {'morning', 'afternoon', 'evening'}:
+        session['dashboard_error'] = 'Choose a cosmetic and routine time.'
+        return redirect(url_for('home'))
+    safety_note = cosmetic_safety_note(name, brand)
+    with get_database() as connection:
+        connection.execute(
+            '''
+            INSERT INTO cosmetic_routine (
+                user_id, product_code, name, brand, image_url, logo_url,
+                routine_time, safety_note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                get_user_id(),
+                request.form.get('product_code', '').strip()[:80],
+                name,
+                brand,
+                request.form.get('image_url', '').strip()[:500],
+                request.form.get('logo_url', '').strip()[:500],
+                routine_time,
+                safety_note,
+            ),
+        )
+    session['dashboard_active_plan'] = 'cosmetic-plan'
+    session['dashboard_notice'] = f'Added {name} to your cosmetic routine.'
+    return redirect(url_for('home'))
+
+
+@app.post('/cosmetics/<int:cosmetic_id>/delete')
+def delete_cosmetic(cosmetic_id):
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    with get_database() as connection:
+        connection.execute(
+            'DELETE FROM cosmetic_routine WHERE id = ? AND user_id = ?',
+            (cosmetic_id, get_user_id()),
+        )
+    session['dashboard_active_plan'] = 'cosmetic-plan'
     return redirect(url_for('home'))
 
 @app.route('/recipe', methods=['GET', 'POST'])
