@@ -2378,12 +2378,21 @@ body {
     background: #f1f5ef;
 }
 
+.nutrition-gauges {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    margin-bottom: 20px;
+}
+
 .calorie-ring {
     position: relative;
     display: grid;
     width: 150px;
     height: 150px;
-    margin: 0 auto 20px;
+    flex: 0 0 auto;
+    margin: 0;
     padding: 11px;
     place-items: center;
     border-radius: 50%;
@@ -2428,6 +2437,72 @@ body {
     margin-top: 4px;
     color: #718078;
     font-size: 9px;
+}
+
+.water-gauge {
+    display: grid;
+    justify-items: center;
+    min-width: 62px;
+}
+
+.water-gauge-label {
+    margin-bottom: 7px;
+    color: #527267;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.water-bar {
+    position: relative;
+    width: 25px;
+    height: 105px;
+    overflow: hidden;
+    border: 2px solid #bdd4d7;
+    border-radius: 13px;
+    background: #e4ece9;
+}
+
+.water-bar > span {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    min-height: 0;
+    border-radius: 9px;
+    background: linear-gradient(#73c8d5, #3f99b0);
+    transition: height .25s ease;
+}
+
+.water-gauge strong {
+    margin-top: 7px;
+    color: #315f6a;
+    font-size: 12px;
+}
+
+.water-gauge small {
+    color: #829087;
+    font-size: 9px;
+}
+
+.water-controls {
+    display: flex;
+    gap: 5px;
+    margin-top: 6px;
+}
+
+.water-controls button {
+    display: grid;
+    width: 23px;
+    height: 23px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid #cbdcd9;
+    border-radius: 50%;
+    background: #fff;
+    color: #397886;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .nutrition-summary > section {
@@ -2914,6 +2989,15 @@ body {
 
     .nutrition-summary {
         order: -1;
+    }
+
+    .nutrition-gauges {
+        gap: 20px;
+    }
+
+    .calorie-ring {
+        width: 135px;
+        height: 135px;
     }
 
     .nutrition-profile form {

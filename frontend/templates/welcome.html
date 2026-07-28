@@ -259,13 +259,36 @@
                     </div>
 
                     <aside class="nutrition-summary">
-                        <div class="calorie-ring"
-                             style="--calorie-progress: {{ (calorie_progress|default(0)) * 3.6 }}deg"
-                             aria-label="{{ nutrition_totals.calories|default(0)|round|int }} of {{ calorie_target|default(0) }} calories">
-                            <div>
-                                <strong>{{ nutrition_totals.calories|default(0)|round|int }}</strong>
-                                <span>{% if calorie_target %}of {{ calorie_target }} cal{% else %}calories{% endif %}</span>
+                        <div class="nutrition-gauges">
+                            <div class="calorie-ring"
+                                 style="--calorie-progress: {{ (calorie_progress|default(0)) * 3.6 }}deg"
+                                 aria-label="{{ nutrition_totals.calories|default(0)|round|int }} of {{ calorie_target|default(0) }} calories">
+                                <div>
+                                    <strong>{{ nutrition_totals.calories|default(0)|round|int }}</strong>
+                                    <span>{% if calorie_target %}of {{ calorie_target }} cal{% else %}calories{% endif %}</span>
+                                </div>
                             </div>
+                            <section class="water-gauge"
+                                     aria-label="{{ water_amount_ml }} of {{ water_goal_ml }} milliliters of water">
+                                <span class="water-gauge-label">Water</span>
+                                <div class="water-bar">
+                                    <span style="height: {{ water_progress }}%"></span>
+                                </div>
+                                <strong>{{ (water_amount_ml / 1000)|round(2) }} L</strong>
+                                <small>of {{ (water_goal_ml / 1000)|round(1) }} L</small>
+                                <div class="water-controls">
+                                    <form action="{{ url_for('update_water_log') }}" method="POST">
+                                        <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                        <input type="hidden" name="change_ml" value="-250">
+                                        <button type="submit" aria-label="Remove one glass of water">−</button>
+                                    </form>
+                                    <form action="{{ url_for('update_water_log') }}" method="POST">
+                                        <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                                        <input type="hidden" name="change_ml" value="250">
+                                        <button type="submit" aria-label="Add one 250 milliliter glass of water">+</button>
+                                    </form>
+                                </div>
+                            </section>
                         </div>
                         <section>
                             <span class="plan-block-label">Macros</span>

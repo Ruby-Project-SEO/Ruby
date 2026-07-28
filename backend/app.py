@@ -309,6 +309,13 @@ def init_database():
                 FOREIGN KEY (saved_recipe_id) REFERENCES saved_recipes(id)
             );
 
+            CREATE TABLE IF NOT EXISTS water_log (
+                user_id TEXT NOT NULL,
+                log_date TEXT NOT NULL,
+                amount_ml INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, log_date)
+            );
+
         ''')
 
         response_columns = {
@@ -407,6 +414,13 @@ def get_dashboard_context():
             ''',
             (user_id, date.today().isoformat()),
         ).fetchall()
+        water_row = connection.execute(
+            '''
+            SELECT amount_ml FROM water_log
+            WHERE user_id = ? AND log_date = ?
+            ''',
+            (user_id, date.today().isoformat()),
+        ).fetchone()
     ruby_response = session.pop('ruby_response', None)
     completed_count = sum(task['completed'] for task in tasks)
     nutrition_totals = {
@@ -427,6 +441,9 @@ def get_dashboard_context():
         min(100, round(nutrition_totals['calories'] / calorie_target * 100))
         if calorie_target else 0
     )
+    water_goal_ml = 2500
+    water_amount_ml = water_row['amount_ml'] if water_row else 0
+    water_progress = min(100, round(water_amount_ml / water_goal_ml * 100))
     context = {
         'username': session.get('username'),
         'tasks': tasks,
@@ -435,6 +452,9 @@ def get_dashboard_context():
         'nutrition_totals': nutrition_totals,
         'calorie_target': calorie_target,
         'calorie_progress': calorie_progress,
+        'water_amount_ml': water_amount_ml,
+        'water_goal_ml': water_goal_ml,
+        'water_progress': water_progress,
         'saved_recipes': saved_recipes,
         'food_log': food_log,
         'auth_form_token': auth_form_token(),
@@ -1042,6 +1062,37 @@ def delete_food_log(food_log_id):
         connection.execute(
             'DELETE FROM food_log WHERE id = ? AND user_id = ?',
             (food_log_id, get_user_id()),
+        )
+    return redirect(url_for('home'))
+
+
+@app.post('/nutrition/water')
+def update_water_log():
+    if not session.get('username') or not valid_auth_form():
+        return redirect(url_for('login'))
+    try:
+        change_ml = int(request.form.get('change_ml', ''))
+    except (TypeError, ValueError):
+        return redirect(url_for('home'))
+    if change_ml not in {-250, 250}:
+        return redirect(url_for('home'))
+
+    user_id = get_user_id()
+    today = date.today().isoformat()
+    with get_database() as connection:
+        current = connection.execute(
+            'SELECT amount_ml FROM water_log WHERE user_id = ? AND log_date = ?',
+            (user_id, today),
+        ).fetchone()
+        amount_ml = min(10000, max(0, (current['amount_ml'] if current else 0) + change_ml))
+        connection.execute(
+            '''
+            INSERT INTO water_log (user_id, log_date, amount_ml)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, log_date)
+            DO UPDATE SET amount_ml = excluded.amount_ml
+            ''',
+            (user_id, today, amount_ml),
         )
     return redirect(url_for('home'))
 
