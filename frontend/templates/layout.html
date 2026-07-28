@@ -58,6 +58,10 @@
                 </li>
               </ul>
             </div>
+            <a class="nav-link {% if request.endpoint == 'news_feed' %}active{% endif %}" href="{{ url_for('news_feed') }}">
+              <i class="bi bi-newspaper me-1" aria-hidden="true"></i>
+              News
+            </a>
             <a class="nav-link {% if request.endpoint == 'my_ruby' %}active{% endif %}" href="{{ url_for('my_ruby') }}">Saved</a>
           </div>
 

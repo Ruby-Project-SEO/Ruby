@@ -787,6 +787,12 @@ def home():
         return redirect(url_for('login'))
     return render_dashboard()
 
+@app.route('/news')
+def news_feed():
+    if not session.get('username'):
+        return redirect(url_for('login'))
+    return render_template('news_feed.html')
+
 @app.route('/login')
 def login():
     if session.get('user_id') and session.get('username'):
