@@ -12,11 +12,16 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
+from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, url_for, redirect, request, session
 from flask_behind_proxy import FlaskBehindProxy
 from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel, Field
+
+ENV_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(ENV_PROJECT_ROOT / '.env')
+
 from backend.services.wellness import (
     delete_saved,
     generate_cosmetic_remedies,
