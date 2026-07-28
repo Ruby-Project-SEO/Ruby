@@ -374,6 +374,43 @@ body {
     color: #ffffff;
 }
 
+.wellness-navbar .nav-link.active {
+    color: #ffffff;
+}
+
+.wellness-tools-menu {
+    width: 270px;
+    padding: 8px;
+    border: 1px solid #dce4de;
+    border-radius: 12px;
+    box-shadow: 0 14px 35px rgba(12, 54, 37, 0.16);
+}
+
+.wellness-tools-menu .dropdown-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: #183f2d;
+    white-space: normal;
+}
+
+.wellness-tools-menu .dropdown-item:hover,
+.wellness-tools-menu .dropdown-item:focus {
+    color: #183f2d;
+    background: #f0f5f1;
+}
+
+.wellness-tools-menu strong {
+    font-size: 13px;
+}
+
+.wellness-tools-menu small {
+    color: #6d7e75;
+    font-size: 11px;
+}
+
 .navbar-actions {
     align-items: center;
     gap: 10px;
@@ -503,6 +540,12 @@ body {
 
     .wellness-navbar .nav-link {
         margin: 4px 0;
+    }
+
+    .wellness-tools-menu {
+        width: 100%;
+        border: 0;
+        box-shadow: none;
     }
 
     .navbar-actions {
