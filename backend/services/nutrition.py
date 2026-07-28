@@ -1,4 +1,5 @@
 import os
+from urllib.parse import quote
 
 import requests
 
@@ -9,6 +10,40 @@ USDA_API_KEY = (
     or os.environ.get('FDC_API_KEY')
     or 'DEMO_KEY'
 )
+LOGO_DEV_PUBLISHABLE_KEY = os.environ.get('LOGO_DEV_PUBLISHABLE_KEY', '').strip()
+
+
+def _nutrient_value(food, names, units=None):
+    for item in food.get('foodNutrients') or []:
+        nutrient = item.get('nutrient') or {}
+        name = str(
+            nutrient.get('name')
+            or item.get('nutrientName')
+            or ''
+        ).lower()
+        unit = str(
+            nutrient.get('unitName')
+            or item.get('unitName')
+            or ''
+        ).lower()
+        if not any(name == candidate or name.startswith(f'{candidate} (') for candidate in names):
+            continue
+        if units is not None and unit not in units:
+            continue
+        try:
+            return max(0.0, float(item.get('amount', item.get('value', 0)) or 0))
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
+
+
+def _brand_logo_url(brand):
+    if not brand or not LOGO_DEV_PUBLISHABLE_KEY:
+        return ''
+    return (
+        f'https://img.logo.dev/name/{quote(brand, safe="")}'
+        f'?token={quote(LOGO_DEV_PUBLISHABLE_KEY)}&size=80&format=png'
+    )
 
 
 def _serving_grams(food):
@@ -50,12 +85,16 @@ def search_usda_foods(query, limit=12):
             'fdc_id': food.get('fdcId'),
             'name': food.get('description') or 'Unnamed food',
             'brand': food.get('brandOwner') or food.get('brandName') or '',
+            'calories_per_100g': round(
+                _nutrient_value(food, {'energy'}, {'kcal'}),
+            ),
             'serving_grams': serving_grams,
             'serving_label': (
                 food.get('householdServingFullText')
                 or (f'{serving_grams:g} g' if serving_grams else '100 g')
             ),
         })
+        results[-1]['logo_url'] = _brand_logo_url(results[-1]['brand'])
     return [result for result in results if result['fdc_id']]
 
 
@@ -70,22 +109,8 @@ def get_usda_food(fdc_id):
 
 
 def food_nutrients_per_100g(food):
-    nutrients = {}
-    for item in food.get('foodNutrients') or []:
-        nutrient = item.get('nutrient') or {}
-        name = str(nutrient.get('name') or '').lower()
-        unit = str(nutrient.get('unitName') or '').lower()
-        try:
-            amount = max(0.0, float(item.get('amount') or 0))
-        except (TypeError, ValueError):
-            amount = 0.0
-        nutrients[(name, unit)] = amount
-
     def find(names, units=None):
-        for (name, unit), amount in nutrients.items():
-            if name in names and (units is None or unit in units):
-                return amount
-        return 0.0
+        return _nutrient_value(food, names, units)
 
     return {
         'calories': find({'energy'}, {'kcal'}),

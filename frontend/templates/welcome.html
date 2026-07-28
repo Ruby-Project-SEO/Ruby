@@ -547,16 +547,44 @@
             button.className = 'usda-food-result';
             button.setAttribute('role', 'option');
 
+            const identity = document.createElement('span');
+            identity.className = 'food-result-identity';
+            const logo = document.createElement('span');
+            logo.className = 'food-result-logo';
+            const initials = (food.brand || food.name)
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((word) => word[0])
+                .join('')
+                .toUpperCase();
+            logo.textContent = initials || 'R';
+            if (food.logo_url) {
+                const image = document.createElement('img');
+                image.src = food.logo_url;
+                image.alt = '';
+                image.loading = 'lazy';
+                image.addEventListener('load', () => logo.classList.add('has-image'));
+                image.addEventListener('error', () => image.remove());
+                logo.append(image);
+            }
+
             const copy = document.createElement('span');
+            copy.className = 'food-result-copy';
             const name = document.createElement('strong');
             const detail = document.createElement('small');
+            const nutrition = document.createElement('b');
             name.textContent = food.name;
             detail.textContent = [food.brand, food.serving_label].filter(Boolean).join(' · ');
-            copy.append(name, detail);
+            nutrition.textContent = food.calories_per_100g
+                ? `${food.calories_per_100g} cal / 100 g`
+                : 'Nutrition available after selection';
+            copy.append(name, detail, nutrition);
+            identity.append(logo, copy);
 
             const addLabel = document.createElement('span');
             addLabel.textContent = 'Choose';
-            button.append(copy, addLabel);
+            button.append(identity, addLabel);
             button.addEventListener('click', () => selectFood(food));
             foodResults.append(button);
         });
