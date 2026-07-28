@@ -114,65 +114,106 @@
         </div>
         {% endif %}
 
-        {% set task_total = tasks|length %}
-        <section class="task-panel">
-            <div class="task-panel-header">
+        <section class="task-panel plan-workspace">
+            <div class="task-panel-header plan-workspace-header">
                 <div>
                     <span class="dashboard-section-label">Today</span>
                     <h2>Your plan</h2>
-                    <p>Keep the day simple. Add only what you want to remember.</p>
+                    <p>One place for nutrition, schedules, routines, and safety.</p>
                 </div>
-                {% if task_total %}
-                <span>{{ completed_count }} of {{ task_total }} complete</span>
-                {% endif %}
             </div>
 
-            <div class="task-list">
-                {% for task in tasks %}
-                <div class="task-row {% if task.completed %}completed{% endif %}">
-                    <form class="task-toggle-form" action="{{ url_for('toggle_task', task_id=task.id) }}" method="POST">
-                        <button class="task-toggle" type="submit" aria-label="{% if task.completed %}Mark {{ task.title }} incomplete{% else %}Mark {{ task.title }} complete{% endif %}">
-                            <i class="bi {% if task.completed %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
-                        </button>
-                    </form>
-                    <div class="task-content">
-                        <span class="task-title">{{ task.title }}</span>
-                        <form class="task-edit-form" action="{{ url_for('edit_task', task_id=task.id) }}" method="POST">
-                            <input type="text" name="title" value="{{ task.title }}" maxlength="120" aria-label="Edit task" required>
-                            <button class="task-save" type="submit">Save</button>
-                            <button class="task-cancel" type="button">Cancel</button>
-                        </form>
+            <div class="plan-tabs" role="tablist" aria-label="Plan category">
+                <button id="food-plan-tab" class="active" type="button" role="tab"
+                        aria-selected="true" aria-controls="food-plan" data-plan-tab="food-plan">
+                    Food
+                </button>
+                <button id="medication-plan-tab" type="button" role="tab"
+                        aria-selected="false" aria-controls="medication-plan" data-plan-tab="medication-plan">
+                    Medications
+                </button>
+                <button id="cosmetic-plan-tab" type="button" role="tab"
+                        aria-selected="false" aria-controls="cosmetic-plan" data-plan-tab="cosmetic-plan">
+                    Cosmetics
+                </button>
+            </div>
+
+            <div id="food-plan" class="plan-panel" role="tabpanel" aria-labelledby="food-plan-tab">
+                <div class="plan-panel-heading">
+                    <div>
+                        <h3>Food overview</h3>
+                        <p>Today’s nutrition and food-safety picture.</p>
                     </div>
-                    <div class="task-actions">
-                        <button class="task-edit-toggle" type="button" aria-label="Edit {{ task.title }}"><i class="bi bi-pencil"></i></button>
-                        <form action="{{ url_for('delete_task', task_id=task.id) }}" method="POST">
-                            <button class="task-delete" type="submit" aria-label="Delete {{ task.title }}"><i class="bi bi-trash3"></i></button>
-                        </form>
+                    <span class="plan-setup-status">Not tracking yet</span>
+                </div>
+                <div class="food-stat-grid">
+                    <section class="plan-stat-block">
+                        <span>Macronutrients</span>
+                        <strong>Nothing logged today</strong>
+                        <div class="macro-preview" aria-label="Macronutrient totals unavailable">
+                            <span>Protein <b>—</b></span>
+                            <span>Carbs <b>—</b></span>
+                            <span>Fat <b>—</b></span>
+                        </div>
+                    </section>
+                    <section class="plan-stat-block">
+                        <span>Micronutrients</span>
+                        <strong>No intake data yet</strong>
+                        <p>Daily and weekly nutrient patterns will appear after meals are logged.</p>
+                    </section>
+                    <section class="plan-stat-block safety">
+                        <span>Food safety</span>
+                        <strong>Monitoring not set up</strong>
+                        <p>Recall matches will appear only after a specific product is saved.</p>
+                    </section>
+                </div>
+            </div>
+
+            <div id="medication-plan" class="plan-panel" role="tabpanel"
+                 aria-labelledby="medication-plan-tab" hidden>
+                <div class="plan-panel-heading">
+                    <div>
+                        <h3>Medication schedule</h3>
+                        <p>What’s due today and whether anything needs attention.</p>
                     </div>
+                    <span class="plan-setup-status">Not set up</span>
                 </div>
-                {% else %}
-                <div class="task-empty-state">
-                    <p>Nothing needs your attention right now.</p>
-                    <span>Add a meal, medication, or routine reminder when you’re ready.</span>
+                <div class="schedule-overview">
+                    <section>
+                        <span>Today’s schedule</span>
+                        <strong>No medications scheduled</strong>
+                        <p>Scheduled doses will appear here in time order.</p>
+                    </section>
+                    <section>
+                        <span>Medication safety</span>
+                        <strong>Monitoring not set up</strong>
+                        <p>Recall and FDA warning matches will appear here.</p>
+                    </section>
                 </div>
-                {% endfor %}
             </div>
 
-            <details class="add-today">
-                <summary>Add to today</summary>
-                <form class="task-add-form" action="{{ url_for('add_task') }}" method="POST" autocomplete="off">
-                    <input type="text" name="title" maxlength="120" placeholder="Meal, medication, or routine reminder" aria-label="Add something for today" autocomplete="off" required>
-                    <button type="submit"><span>Add</span></button>
-                </form>
-            </details>
-        </section>
-
-        <section class="dashboard-safety-status" aria-labelledby="safety-watch-title">
-            <div>
-                <span class="dashboard-section-label">Safety watch</span>
-                <h2 id="safety-watch-title">No products monitored yet</h2>
+            <div id="cosmetic-plan" class="plan-panel" role="tabpanel"
+                 aria-labelledby="cosmetic-plan-tab" hidden>
+                <div class="plan-panel-heading">
+                    <div>
+                        <h3>Cosmetic routine</h3>
+                        <p>Your personal-care steps and product safety.</p>
+                    </div>
+                    <span class="plan-setup-status">Not set up</span>
+                </div>
+                <div class="schedule-overview">
+                    <section>
+                        <span>Today’s routine</span>
+                        <strong>No steps scheduled</strong>
+                        <p>Morning and evening routine steps will appear here.</p>
+                    </section>
+                    <section>
+                        <span>Cosmetic safety</span>
+                        <strong>Monitoring not set up</strong>
+                        <p>Relevant recalls and safety notices will appear here.</p>
+                    </section>
+                </div>
             </div>
-            <p>Important food, medication, and personal-care alerts will appear here without crowding your day.</p>
         </section>
     </div>
 </section>
@@ -247,6 +288,22 @@
 
         foodCheckboxes.forEach((checkbox) => checkbox.addEventListener('change', updateFoodSelection));
     }
+
+    const planTabs = [...document.querySelectorAll('[data-plan-tab]')];
+    const planPanels = [...document.querySelectorAll('.plan-panel')];
+
+    planTabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            planTabs.forEach((item) => {
+                const selected = item === tab;
+                item.classList.toggle('active', selected);
+                item.setAttribute('aria-selected', String(selected));
+            });
+            planPanels.forEach((panel) => {
+                panel.hidden = panel.id !== tab.dataset.planTab;
+            });
+        });
+    });
 
     document.querySelectorAll('.task-row').forEach((taskRow) => {
         const editButton = taskRow.querySelector('.task-edit-toggle');

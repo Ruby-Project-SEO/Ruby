@@ -1787,6 +1787,146 @@ body {
     background: #fff;
 }
 
+.plan-workspace {
+    grid-column: 1 / -1;
+}
+
+.plan-workspace-header {
+    padding-bottom: 16px;
+}
+
+.plan-tabs {
+    display: flex;
+    gap: 4px;
+    width: max-content;
+    max-width: 100%;
+    padding: 4px;
+    border-radius: 10px;
+    background: #eef2ec;
+}
+
+.plan-tabs button {
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #64776d;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.plan-tabs button.active {
+    background: #fff;
+    color: #17432f;
+    box-shadow: 0 1px 5px rgba(24, 61, 44, .09);
+}
+
+.plan-panel {
+    padding-top: 22px;
+}
+
+.plan-panel[hidden] {
+    display: none;
+}
+
+.plan-panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #e7ebe6;
+}
+
+.plan-panel-heading h3 {
+    margin: 0 0 3px;
+    color: #234b38;
+    font-size: 15px;
+    font-weight: 650;
+}
+
+.plan-panel-heading p,
+.plan-stat-block p,
+.schedule-overview p {
+    margin: 0;
+    color: #829087;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.plan-setup-status {
+    color: #718078;
+    font-size: 10px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.food-stat-grid,
+.schedule-overview {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding-top: 20px;
+}
+
+.plan-stat-block,
+.schedule-overview section {
+    min-width: 0;
+    padding: 0 22px;
+    border-left: 1px solid #e7ebe6;
+}
+
+.plan-stat-block:first-child,
+.schedule-overview section:first-child {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.plan-stat-block:last-child,
+.schedule-overview section:last-child {
+    padding-right: 0;
+}
+
+.plan-stat-block > span,
+.schedule-overview section > span {
+    display: block;
+    margin-bottom: 5px;
+    color: #718078;
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.plan-stat-block strong,
+.schedule-overview strong {
+    display: block;
+    margin-bottom: 7px;
+    color: #284f3c;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.macro-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    color: #7d8b83;
+    font-size: 10px;
+}
+
+.macro-preview span {
+    display: inline-flex;
+    gap: 5px;
+}
+
+.macro-preview b {
+    color: #365746;
+}
+
+.schedule-overview {
+    grid-template-columns: repeat(2, 1fr);
+}
+
 .task-panel-header {
     display: flex;
     align-items: flex-start;
@@ -2145,6 +2285,34 @@ body {
 
     .task-panel {
         padding: 20px;
+    }
+
+    .plan-tabs {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .plan-tabs button {
+        flex: 1 0 auto;
+    }
+
+    .food-stat-grid,
+    .schedule-overview {
+        grid-template-columns: 1fr;
+        gap: 18px;
+    }
+
+    .plan-stat-block,
+    .schedule-overview section {
+        padding: 18px 0 0;
+        border-top: 1px solid #e7ebe6;
+        border-left: 0;
+    }
+
+    .plan-stat-block:first-child,
+    .schedule-overview section:first-child {
+        padding-top: 0;
+        border-top: 0;
     }
 
     .task-actions {
