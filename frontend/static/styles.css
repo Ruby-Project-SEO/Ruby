@@ -2389,11 +2389,8 @@ body {
     border-radius: 50%;
     background: conic-gradient(
         from -25deg,
-        #d8ef2f 0deg,
-        #9fca35 95deg,
-        #43a86b 190deg,
-        #168a76 275deg,
-        #277c91 360deg
+        #b5d82d 0deg,
+        #4d9b58 360deg
     );
 }
 
@@ -2443,40 +2440,26 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 5px 0;
-    padding: 7px 10px 7px 30px;
-    border-radius: 8px;
+    padding: 4px 0 4px 19px;
     color: #64776d;
     font-size: 13px;
 }
 
 .nutrition-stat-row::before {
     position: absolute;
-    left: 11px;
-    width: 9px;
-    height: 9px;
+    left: 1px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     content: "";
-}
-
-.nutrition-stat-row:nth-of-type(1) {
-    background: #e5f4e9;
 }
 
 .nutrition-stat-row:nth-of-type(1)::before {
     background: #3aa768;
 }
 
-.nutrition-stat-row:nth-of-type(2) {
-    background: #fff3d8;
-}
-
 .nutrition-stat-row:nth-of-type(2)::before {
     background: #e2a72e;
-}
-
-.nutrition-stat-row:nth-of-type(3) {
-    background: #e8f1fa;
 }
 
 .nutrition-stat-row:nth-of-type(3)::before {
@@ -2498,46 +2481,26 @@ body {
     display: flex;
     justify-content: space-between;
     gap: 6px;
-    padding: 8px 9px;
-    border: 1px solid transparent;
-    border-radius: 8px;
+    padding: 3px 0;
     color: #718078;
     font-size: 12px;
-}
-
-.micro-grid span:nth-child(6n + 1) {
-    border-color: #d7eadb;
-    background: #eaf6ec;
-}
-
-.micro-grid span:nth-child(6n + 2) {
-    border-color: #f0e1ba;
-    background: #fff6df;
-}
-
-.micro-grid span:nth-child(6n + 3) {
-    border-color: #ead8d1;
-    background: #f9ece7;
-}
-
-.micro-grid span:nth-child(6n + 4) {
-    border-color: #d5e4ee;
-    background: #e9f3f8;
-}
-
-.micro-grid span:nth-child(6n + 5) {
-    border-color: #e3ddf0;
-    background: #f2eef9;
-}
-
-.micro-grid span:nth-child(6n) {
-    border-color: #d9e5c4;
-    background: #f0f6e5;
 }
 
 .micro-grid b {
     color: #315844;
     font-weight: 650;
+}
+
+.micro-grid span:nth-child(3n + 1) b {
+    color: #3f8f5c;
+}
+
+.micro-grid span:nth-child(3n + 2) b {
+    color: #b07b24;
+}
+
+.micro-grid span:nth-child(3n) b {
+    color: #477f9f;
 }
 
 .nutrition-safety-row {
