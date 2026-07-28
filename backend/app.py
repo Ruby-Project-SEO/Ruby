@@ -25,12 +25,10 @@ load_dotenv(ENV_PROJECT_ROOT / '.env')
 
 from backend.services.wellness import (
     delete_saved,
-    generate_cosmetic_remedies,
     generate_drug_comparison,
-    generate_drug_remedies,
-    generate_food_remedies,
     get_link,
     get_recipe_details,
+    search_food,
     search_recipes,
     select_item,
     show_db,
@@ -84,6 +82,14 @@ class RubyGuidance(BaseModel):
         min_length=3,
         max_length=3,
         description='Food, drugs, and cosmetics ranked from most to least relevant, each exactly once.'
+    )
+    suggested_search_terms: list[str] = Field(
+        default_factory=list,
+        max_length=6,
+        description=(
+            'Up to six short, non-diagnostic product or ingredient search terms '
+            'for the highest-ranked category.'
+        ),
     )
 
 class RoutineStep(BaseModel):
@@ -639,7 +645,12 @@ def generate_ruby_answer(client, model, question):
                 'Use plain text without Markdown and keep responses under 180 words. '
                 'Rank food, drugs, and cosmetics by which information section is most relevant to explore next. '
                 'Food means nutrition and recipes, drugs means medication information, and cosmetics means skincare or personal care. '
-                'The ranking is navigation guidance, not a recommendation to take medication or buy a product.'
+                'The ranking is navigation guidance, not a recommendation to take medication or buy a product. '
+                'Also provide up to six short search terms for the highest-ranked category. '
+                'For cosmetics, use common product types or ingredients. '
+                'For food, use common foods or ingredients. '
+                'For drugs, only use a medication name when the user explicitly names that medication; '
+                'otherwise leave suggested_search_terms empty rather than recommending a drug for symptoms.'
             ),
             thinking_config=types.ThinkingConfig(thinking_level='minimal'),
             max_output_tokens=800,
@@ -648,6 +659,41 @@ def generate_ruby_answer(client, model, question):
         )
     )
     return RubyGuidance.model_validate_json(response.text)
+
+
+def ruby_category_options(category, search_terms):
+    options = []
+    for term in search_terms[:6]:
+        clean_term = str(term).strip()[:80]
+        if not clean_term:
+            continue
+        try:
+            if category == 'food':
+                matches = search_food(clean_term, 'N/A') or []
+                options.extend(matches[:1])
+            elif category == 'drugs':
+                matches = search_medications(clean_term, 1)
+                if matches:
+                    match = matches[0]
+                    options.append({
+                        'Drug': match['name'],
+                        'Price': 'N/A',
+                        'Image': match.get('logo_url'),
+                        'Detail': match.get('labeler') or match.get('generic_name'),
+                    })
+            elif category == 'cosmetics':
+                matches = search_cosmetics(clean_term, 1)
+                if matches:
+                    match = matches[0]
+                    options.append({
+                        'Cosmetic': match['name'],
+                        'Price': 'N/A',
+                        'Image': match.get('image_url') or match.get('logo_url'),
+                        'Detail': match.get('brand'),
+                    })
+        except (requests.RequestException, RuntimeError, ValueError):
+            app.logger.info('No %s option found for %s', category, clean_term)
+    return options[:6]
 
 def generate_routine_answer(client, model, product_name):
     response = client.models.generate_content(
@@ -904,12 +950,10 @@ def ask_ruby():
             ranking.extend(category for category in ('food', 'drugs', 'cosmetics') if category not in ranking)
             answer = guidance.answer or 'Ruby could not generate a response. Please try again.'
             top_category = ranking[0]
-            if top_category == 'food':
-                options = generate_food_remedies(question)
-            elif top_category == 'drugs':
-                options = generate_drug_remedies(question)
-            else:
-                options = generate_cosmetic_remedies(question)
+            options = ruby_category_options(
+                top_category,
+                guidance.suggested_search_terms,
+            )
         else:
             ranking = []
             options = []

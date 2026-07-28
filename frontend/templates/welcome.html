@@ -47,13 +47,17 @@
                             <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-egg-fried"></i>Food{% if loop.first %}<small>Start here</small>{% endif %}
                         </a>
                         {% elif category == 'drugs' %}
-                        <span class="unavailable-remedy {% if loop.first %}recommended-remedy{% endif %}">
+                        <a class="{% if loop.first %}recommended-remedy{% endif %}"
+                           href="#medication-plan" data-open-plan="medication-plan">
                             <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-capsule"></i>Drugs
-                        </span>
+                            {% if loop.first %}<small>Start here</small>{% endif %}
+                        </a>
                         {% elif category == 'cosmetics' %}
-                        <span class="unavailable-remedy {% if loop.first %}recommended-remedy{% endif %}">
+                        <a class="{% if loop.first %}recommended-remedy{% endif %}"
+                           href="#cosmetic-plan" data-open-plan="cosmetic-plan">
                             <span class="remedy-rank">{{ loop.index }}</span><i class="bi bi-droplet"></i>Cosmetics
-                        </span>
+                            {% if loop.first %}<small>Start here</small>{% endif %}
+                        </a>
                         {% endif %}
                     {% endfor %}
                 </div>
@@ -90,7 +94,7 @@
                         </div>
                         <div class="option-details">
                             <h3>{{ option_name }}</h3>
-                            <p>{{ ruby_category|capitalize }} option</p>
+                            <p>{{ item.get('Detail') or (ruby_category|capitalize ~ ' option') }}</p>
                         </div>
                         <span class="option-price">{{ item.Price|format_price }}</span>
                         {% if ruby_category == 'food' %}
@@ -729,6 +733,15 @@
             planPanels.forEach((panel) => {
                 panel.hidden = panel.id !== tab.dataset.planTab;
             });
+        });
+    });
+
+    document.querySelectorAll('[data-open-plan]').forEach((link) => {
+        link.addEventListener('click', () => {
+            const targetTab = document.querySelector(
+                `[data-plan-tab="${link.dataset.openPlan}"]`
+            );
+            if (targetTab) targetTab.click();
         });
     });
 
