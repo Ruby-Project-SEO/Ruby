@@ -6,14 +6,22 @@
             <div>
                 <span class="dashboard-label">Your wellness dashboard</span>
                 <h1><span id="typed-greeting">Good day{% if username %}, {{ username }}{% endif %}</span><span class="typing-caret" aria-hidden="true"></span></h1>
-                <p>What can Ruby help you with today?</p>
+                <p>Here’s what needs your attention today.</p>
+            </div>
+        </div>
+
+        <div class="dashboard-ask-heading">
+            <span class="dashboard-section-label">Ask Ruby</span>
+            <div>
+                <h2>Need help with something else?</h2>
+                <p>Ask about food, medications, or personal care.</p>
             </div>
         </div>
 
         <form id="ruby-question-form" class="wellness-search" action="{{ url_for('ask_ruby') }}" method="POST" autocomplete="off">
             <i class="bi bi-search"></i>
-            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="Ask a wellness question..." aria-label="Ask a wellness question" autocomplete="off" required>
-            <button type="submit">Ask Ruby</button>
+            <input type="text" name="question" value="{{ ruby_question or '' }}" maxlength="1000" placeholder="What would you like to know?" aria-label="Ask Ruby a wellness question" autocomplete="off" required>
+            <button type="submit">Ask</button>
         </form>
 
         {% if ruby_answer or ruby_error %}
@@ -110,20 +118,14 @@
         <section class="task-panel">
             <div class="task-panel-header">
                 <div>
-                    <h2>Tasks</h2>
-                    <p>Keep track of what you want to finish.</p>
+                    <span class="dashboard-section-label">Today</span>
+                    <h2>Your plan</h2>
+                    <p>Keep the day simple. Add only what you want to remember.</p>
                 </div>
-                <span>{{ completed_count }} of {{ task_total }} done</span>
+                {% if task_total %}
+                <span>{{ completed_count }} of {{ task_total }} complete</span>
+                {% endif %}
             </div>
-
-            <div class="task-progress" role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="{{ task_total }}" aria-valuenow="{{ completed_count }}">
-                <span style="width: {% if task_total %}{{ (completed_count / task_total * 100)|round }}{% else %}0{% endif %}%"></span>
-            </div>
-
-            <form class="task-add-form" action="{{ url_for('add_task') }}" method="POST" autocomplete="off">
-                <input type="text" name="title" maxlength="120" placeholder="What do you need to do?" aria-label="New task" autocomplete="off" required>
-                <button type="submit"><i class="bi bi-plus-lg"></i><span>Add task</span></button>
-            </form>
 
             <div class="task-list">
                 {% for task in tasks %}
@@ -150,31 +152,28 @@
                 </div>
                 {% else %}
                 <div class="task-empty-state">
-                    <i class="bi bi-check2-circle"></i>
-                    <p>No tasks yet.</p>
-                    <span>Add one above when something comes to mind.</span>
+                    <p>Nothing needs your attention right now.</p>
+                    <span>Add a meal, medication, or routine reminder when you’re ready.</span>
                 </div>
                 {% endfor %}
             </div>
+
+            <details class="add-today">
+                <summary>Add to today</summary>
+                <form class="task-add-form" action="{{ url_for('add_task') }}" method="POST" autocomplete="off">
+                    <input type="text" name="title" maxlength="120" placeholder="Meal, medication, or routine reminder" aria-label="Add something for today" autocomplete="off" required>
+                    <button type="submit"><span>Add</span></button>
+                </form>
+            </details>
         </section>
 
-        <div class="simple-actions">
-            <a class="simple-action" href="{{ url_for('recipe') }}">
-                <i class="bi bi-egg-fried"></i>
-                <span>Recipes</span>
-                <i class="bi bi-arrow-right"></i>
-            </a>
-            <a class="simple-action" href="#">
-                <i class="bi bi-capsule"></i>
-                <span>Drugs</span>
-                <i class="bi bi-arrow-right"></i>
-            </a>
-            <a class="simple-action" href="#">
-                <i class="bi bi-droplet"></i>
-                <span>Cosmetics</span>
-                <i class="bi bi-arrow-right"></i>
-            </a>
-        </div>
+        <section class="dashboard-safety-status" aria-labelledby="safety-watch-title">
+            <div>
+                <span class="dashboard-section-label">Safety watch</span>
+                <h2 id="safety-watch-title">No products monitored yet</h2>
+            </div>
+            <p>Important food, medication, and personal-care alerts will appear here without crowding your day.</p>
+        </section>
     </div>
 </section>
 <script>

@@ -1554,18 +1554,22 @@ body {
 }
 
 .simple-dashboard {
-    display: flex;
-    align-items: center;
-    padding-top: 48px;
+    align-items: flex-start;
+    padding-top: 34px;
 }
 
 .simple-dashboard-container {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(260px, .8fr);
+    gap: 16px;
     max-width: 1180px;
 }
 
 .simple-dashboard-header {
-    margin-bottom: 28px;
-    text-align: center;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    margin-bottom: 14px;
+    text-align: left;
 }
 
 .simple-dashboard-header > div {
@@ -1573,8 +1577,13 @@ body {
 }
 
 .simple-dashboard-header h1 {
-    margin-top: 12px;
+    margin-top: 8px;
     min-height: 1em;
+    font-size: clamp(42px, 5vw, 58px);
+}
+
+.simple-dashboard-header p {
+    font-size: 15px;
 }
 
 .typing-caret {
@@ -1769,7 +1778,9 @@ body {
 }
 
 .task-panel {
-    margin-top: 20px;
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: 0;
     padding: 24px;
     border: 1px solid #dce2da;
     border-radius: 16px;
@@ -1788,6 +1799,16 @@ body {
     color: #173d2b;
     font-size: 17px;
     font-weight: 700;
+}
+
+.dashboard-section-label {
+    display: block;
+    margin-bottom: 4px;
+    color: #7c8c83;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .13em;
+    text-transform: uppercase;
 }
 
 .task-panel-header p,
@@ -1821,7 +1842,7 @@ body {
 .task-add-form {
     display: flex;
     gap: 8px;
-    margin-bottom: 14px;
+    margin: 12px 0 0;
 }
 
 .task-add-form input {
@@ -1987,7 +2008,7 @@ body {
 }
 
 .task-empty-state {
-    padding: 28px 16px 12px;
+    padding: 34px 16px;
     color: #96a19b;
     text-align: center;
 }
@@ -2010,7 +2031,118 @@ body {
     font-size: 12px;
 }
 
+.dashboard-safety-status {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    margin: 0;
+    padding: 24px;
+    border: 1px solid #dce2da;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .55);
+}
+
+.dashboard-safety-status h2 {
+    margin: 0;
+    color: #234b38;
+    font-size: 15px;
+    font-weight: 650;
+}
+
+.dashboard-safety-status p {
+    margin: 10px 0 0;
+    color: #7b8982;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.add-today {
+    margin-top: 12px;
+    border-top: 1px solid #eef1ec;
+}
+
+.add-today summary {
+    width: max-content;
+    margin-top: 12px;
+    color: #315844;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 650;
+    list-style: none;
+}
+
+.add-today summary::-webkit-details-marker {
+    display: none;
+}
+
+.add-today summary::before {
+    margin-right: 6px;
+    content: "+";
+}
+
+.dashboard-ask-heading {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    margin-top: 24px;
+}
+
+.dashboard-ask-heading > div {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.dashboard-ask-heading h2 {
+    margin: 0;
+    color: #234b38;
+    font-size: 16px;
+    font-weight: 650;
+}
+
+.dashboard-ask-heading p {
+    margin: 0;
+    color: #7b8982;
+    font-size: 12px;
+}
+
+.simple-dashboard-container > .wellness-search {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    margin: 0;
+    padding: 4px 5px 4px 16px;
+    border-radius: 12px;
+    box-shadow: none;
+}
+
+.simple-dashboard-container > .wellness-search input {
+    padding: 10px 0;
+    font-size: 13px;
+}
+
+.simple-dashboard-container > .wellness-search button {
+    padding: 10px 18px;
+    border-radius: 9px;
+    background: #075737;
+    color: #fff;
+    font-size: 12px;
+}
+
+.simple-dashboard-container > .ruby-result-layout {
+    grid-column: 1 / -1;
+    grid-row: 5;
+}
+
 @media (max-width: 700px) {
+    .simple-dashboard-container {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .simple-dashboard-header {
+        margin-bottom: 4px;
+    }
+
     .task-panel {
         padding: 20px;
     }
@@ -2021,6 +2153,20 @@ body {
 
     .task-add-form button span {
         display: none;
+    }
+
+    .dashboard-safety-status {
+        padding: 20px;
+    }
+
+    .dashboard-ask-heading {
+        margin-top: 10px;
+    }
+
+    .dashboard-ask-heading > div {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 3px;
     }
 }
 
