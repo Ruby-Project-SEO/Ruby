@@ -347,11 +347,20 @@
                 </div>
                 <div class="routine-list">
                     {% for item in medications %}
-                    <article class="routine-item">
-                        <span class="routine-source-badge">Rx</span>
+                    <article class="routine-item {% if not item.logo_url %}without-image{% endif %}">
+                        {% if item.logo_url %}
+                        <span class="routine-product-image">
+                            <img src="{{ item.logo_url }}" alt="{{ item.labeler or item.name }} logo"
+                                 loading="lazy">
+                        </span>
+                        {% endif %}
                         <div>
                             <strong>{{ item.name }}</strong>
-                            <span>{{ item.strength or 'Strength not specified' }} · {{ item.schedule_time }}</span>
+                            <span>
+                                {{ item.labeler or 'Labeler not listed' }} ·
+                                {{ item.strength or 'Strength not specified' }} ·
+                                {{ item.schedule_time }}
+                            </span>
                             <small>{{ item.safety_note }}</small>
                         </div>
                         <form action="{{ url_for('delete_medication', medication_id=item.id) }}" method="POST">
@@ -382,16 +391,16 @@
                 </div>
                 <div class="routine-list">
                     {% for item in cosmetics %}
-                    <article class="routine-item">
+                    <article class="routine-item {% if not item.image_url and not item.logo_url %}without-image{% endif %}">
+                        {% if item.image_url or item.logo_url %}
                         <span class="routine-product-image">
                             {% if item.image_url %}
                             <img src="{{ item.image_url }}" alt="" loading="lazy">
-                            {% elif item.logo_url %}
-                            <img src="{{ item.logo_url }}" alt="" loading="lazy">
                             {% else %}
-                            {{ (item.brand or item.name)[:2]|upper }}
+                            <img src="{{ item.logo_url }}" alt="" loading="lazy">
                             {% endif %}
                         </span>
+                        {% endif %}
                         <div>
                             <strong>{{ item.name }}</strong>
                             <span>{{ item.brand or 'Brand not listed' }} · {{ item.routine_time|title }}</span>
@@ -490,6 +499,8 @@
                 <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
                 <input class="selected-product-id" type="hidden" name="rxcui">
                 <input class="selected-product-name-input" type="hidden" name="name">
+                <input class="selected-product-labeler" type="hidden" name="labeler">
+                <input class="selected-product-logo" type="hidden" name="logo_url">
                 <button class="change-selected-product change-selected-food" type="button">
                     Back to results
                 </button>
@@ -817,6 +828,10 @@
             selectionForm.querySelector('.selected-product-name-input').value = product.name;
             selectionForm.querySelector('.selected-product-name').textContent = product.name;
             if (kind === 'medication') {
+                selectionForm.querySelector('.selected-product-labeler').value =
+                    product.labeler || '';
+                selectionForm.querySelector('.selected-product-logo').value =
+                    product.logo_url || '';
                 const strengthSelect = selectionForm.querySelector('.product-option');
                 strengthSelect.replaceChildren();
                 const strengths = product.strengths.length
@@ -848,17 +863,22 @@
                 button.setAttribute('role', 'option');
                 const identity = document.createElement('span');
                 identity.className = 'food-result-identity';
-                const visual = document.createElement('span');
-                visual.className = 'food-result-logo';
-                visual.textContent = kind === 'medication' ? 'Rx' : 'OBF';
                 const imageUrl = product.image_url || product.logo_url;
                 if (imageUrl) {
+                    const visual = document.createElement('span');
+                    visual.className = 'food-result-logo';
                     const image = document.createElement('img');
                     image.src = imageUrl;
                     image.alt = '';
                     image.loading = 'lazy';
-                    image.addEventListener('error', () => image.remove());
+                    image.addEventListener('error', () => {
+                        visual.remove();
+                        identity.classList.add('without-image');
+                    });
                     visual.append(image);
+                    identity.append(visual);
+                } else {
+                    identity.classList.add('without-image');
                 }
                 const copy = document.createElement('span');
                 copy.className = 'food-result-copy';
@@ -867,7 +887,7 @@
                 const source = document.createElement('b');
                 name.textContent = product.name;
                 detail.textContent = kind === 'medication'
-                    ? (product.strengths[0] || 'Choose a time and optional strength')
+                    ? [product.labeler, product.strengths[0]].filter(Boolean).join(' · ')
                     : (product.brand || 'Brand not listed');
                 if (kind === 'cosmetic' && product.logo_url) {
                     detail.classList.add('product-brand-detail');
@@ -880,7 +900,7 @@
                 }
                 source.textContent = product.source;
                 copy.append(name, detail, source);
-                identity.append(visual, copy);
+                identity.append(copy);
                 const choose = document.createElement('span');
                 choose.textContent = 'Choose';
                 button.append(identity, choose);

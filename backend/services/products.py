@@ -4,7 +4,6 @@ from urllib.parse import quote
 import requests
 
 
-RXTERMS_SEARCH_URL = 'https://clinicaltables.nlm.nih.gov/api/rxterms/v3/search'
 BEAUTY_SEARCH_URL = 'https://world.openbeautyfacts.org/cgi/search.pl'
 OPENFDA_API_KEY = os.environ.get('OPENFDA_API_KEY', '').strip()
 LOGO_DEV_KEY = os.environ.get('LOGO_DEV_PUBLISHABLE_KEY', '').strip()
@@ -15,35 +14,46 @@ def _logo_url(brand):
         return ''
     return (
         f'https://img.logo.dev/name/{quote(brand, safe="")}'
-        f'?token={quote(LOGO_DEV_KEY)}&size=96&format=png'
+        f'?token={quote(LOGO_DEV_KEY)}&size=96&format=png&fallback=404'
     )
 
 
 def search_medications(query, limit=10):
+    clean_query = query.replace('"', '').replace(':', ' ').strip()
+    params = {
+        'search': (
+            f'(brand_name:"{clean_query}" OR generic_name:"{clean_query}")'
+        ),
+        'limit': min(max(limit, 1), 20),
+    }
+    if OPENFDA_API_KEY:
+        params['api_key'] = OPENFDA_API_KEY
     response = requests.get(
-        RXTERMS_SEARCH_URL,
-        params={
-            'terms': query,
-            'ef': 'RXCUIS,STRENGTHS_AND_FORMS',
-            'maxList': min(max(limit, 1), 20),
-        },
+        'https://api.fda.gov/drug/ndc.json',
+        params=params,
         timeout=10,
     )
     response.raise_for_status()
-    payload = response.json()
-    names = payload[1] if len(payload) > 1 else []
-    extra = payload[2] if len(payload) > 2 else {}
-    rxcuis = extra.get('RXCUIS') or []
-    strengths = extra.get('STRENGTHS_AND_FORMS') or []
     results = []
-    for index, name in enumerate(names):
-        choices = strengths[index] if index < len(strengths) else []
-        ids = rxcuis[index] if index < len(rxcuis) else []
+    for product in response.json().get('results', []):
+        brand = (product.get('brand_name') or '').strip()
+        generic_name = (product.get('generic_name') or '').strip()
+        labeler = (product.get('labeler_name') or '').strip()
+        strengths = []
+        for ingredient in product.get('active_ingredients') or []:
+            strength = (ingredient.get('strength') or '').strip()
+            if strength and strength not in strengths:
+                strengths.append(strength)
         results.append({
-            'name': name,
-            'rxcui': str(ids[0]) if ids else '',
-            'strengths': [item.strip() for item in choices[:12] if item.strip()],
-            'source': 'RxNorm',
+            'name': brand or generic_name or 'Unnamed medication',
+            'generic_name': generic_name,
+            'brand': brand,
+            'labeler': labeler,
+            'rxcui': str(product.get('product_ndc') or ''),
+            'strengths': strengths[:12],
+            'dosage_form': (product.get('dosage_form') or '').strip(),
+            'logo_url': _logo_url(labeler),
+            'source': 'FDA NDC',
         })
     return results
 

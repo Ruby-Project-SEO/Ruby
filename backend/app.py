@@ -327,6 +327,8 @@ def init_database():
                 user_id TEXT NOT NULL,
                 rxcui TEXT,
                 name TEXT NOT NULL,
+                labeler TEXT,
+                logo_url TEXT,
                 strength TEXT,
                 schedule_time TEXT NOT NULL,
                 safety_note TEXT NOT NULL,
@@ -366,6 +368,13 @@ def init_database():
             connection.execute('ALTER TABLE food_log ADD COLUMN fdc_id INTEGER')
         if 'amount_grams' not in food_log_columns:
             connection.execute('ALTER TABLE food_log ADD COLUMN amount_grams REAL')
+        medication_columns = {
+            row['name'] for row in connection.execute('PRAGMA table_info(medications)')
+        }
+        if 'labeler' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN labeler TEXT')
+        if 'logo_url' not in medication_columns:
+            connection.execute('ALTER TABLE medications ADD COLUMN logo_url TEXT')
 
 def get_user_id():
     if 'user_id' not in session:
@@ -1172,6 +1181,8 @@ def add_medication():
     name = request.form.get('name', '').strip()[:160]
     rxcui = request.form.get('rxcui', '').strip()[:30]
     strength = request.form.get('strength', '').strip()[:100]
+    labeler = request.form.get('labeler', '').strip()[:160]
+    logo_url = request.form.get('logo_url', '').strip()[:500]
     schedule_time = request.form.get('schedule_time', '').strip()
     if not name or not schedule_time:
         session['dashboard_error'] = 'Choose a medication and schedule time.'
@@ -1187,10 +1198,20 @@ def add_medication():
         connection.execute(
             '''
             INSERT INTO medications (
-                user_id, rxcui, name, strength, schedule_time, safety_note
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                user_id, rxcui, name, labeler, logo_url, strength,
+                schedule_time, safety_note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''',
-            (get_user_id(), rxcui, name, strength, schedule_time, safety_note),
+            (
+                get_user_id(),
+                rxcui,
+                name,
+                labeler,
+                logo_url,
+                strength,
+                schedule_time,
+                safety_note,
+            ),
         )
     session['dashboard_active_plan'] = 'medication-plan'
     session['dashboard_notice'] = f'Added {name} to your medication schedule.'

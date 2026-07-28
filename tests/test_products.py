@@ -13,14 +13,18 @@ class FakeResponse:
 
 
 def test_medication_search_normalizes_strengths(monkeypatch):
-    payload = [
-        1,
-        ['metFORMIN (Oral Pill)'],
-        {
-            'RXCUIS': [['861007']],
-            'STRENGTHS_AND_FORMS': [['  500 mg Tab', '1,000 mg Tab']],
-        },
-    ]
+    payload = {
+        'results': [{
+            'product_ndc': '68788-8528',
+            'brand_name': 'Metformin Hydrochloride',
+            'generic_name': 'Metformin Hydrochloride',
+            'labeler_name': 'Preferred Pharmaceuticals Inc.',
+            'dosage_form': 'TABLET',
+            'active_ingredients': [
+                {'name': 'METFORMIN HYDROCHLORIDE', 'strength': '850 mg/1'},
+            ],
+        }],
+    }
     monkeypatch.setattr(
         products.requests,
         'get',
@@ -30,10 +34,15 @@ def test_medication_search_normalizes_strengths(monkeypatch):
     results = products.search_medications('metformin')
 
     assert results == [{
-        'name': 'metFORMIN (Oral Pill)',
-        'rxcui': '861007',
-        'strengths': ['500 mg Tab', '1,000 mg Tab'],
-        'source': 'RxNorm',
+        'name': 'Metformin Hydrochloride',
+        'generic_name': 'Metformin Hydrochloride',
+        'brand': 'Metformin Hydrochloride',
+        'labeler': 'Preferred Pharmaceuticals Inc.',
+        'rxcui': '68788-8528',
+        'strengths': ['850 mg/1'],
+        'dosage_form': 'TABLET',
+        'logo_url': products._logo_url('Preferred Pharmaceuticals Inc.'),
+        'source': 'FDA NDC',
     }]
 
 

@@ -1885,6 +1885,10 @@ body {
     border-bottom: 1px solid #e7ebe6;
 }
 
+.routine-item.without-image {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .routine-source-badge,
 .routine-product-image {
     display: grid;
@@ -2238,6 +2242,10 @@ body {
     align-items: center;
     gap: 14px;
     min-width: 0;
+}
+
+.food-result-identity.without-image {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .food-result-logo {
