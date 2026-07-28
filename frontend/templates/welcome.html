@@ -869,6 +869,15 @@
                 detail.textContent = kind === 'medication'
                     ? (product.strengths[0] || 'Choose a time and optional strength')
                     : (product.brand || 'Brand not listed');
+                if (kind === 'cosmetic' && product.logo_url) {
+                    detail.classList.add('product-brand-detail');
+                    const brandLogo = document.createElement('img');
+                    brandLogo.src = product.logo_url;
+                    brandLogo.alt = '';
+                    brandLogo.loading = 'lazy';
+                    brandLogo.addEventListener('error', () => brandLogo.remove());
+                    detail.prepend(brandLogo);
+                }
                 source.textContent = product.source;
                 copy.append(name, detail, source);
                 identity.append(visual, copy);

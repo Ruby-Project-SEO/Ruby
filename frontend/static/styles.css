@@ -2168,6 +2168,7 @@ body {
 }
 
 #food-search-step,
+.product-search-step,
 .food-amount-form {
     max-height: calc(100vh - 160px);
     padding: 22px 26px 26px;
@@ -2291,6 +2292,22 @@ body {
     color: #315844;
     font-size: 12px;
     font-weight: 700;
+}
+
+.product-brand-detail {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.product-brand-detail img {
+    width: 20px;
+    height: 20px;
+    padding: 2px;
+    border: 1px solid #e1e7df;
+    border-radius: 5px;
+    object-fit: contain;
+    background: #fff;
 }
 
 .selected-food-copy {
@@ -3100,6 +3117,7 @@ body {
 
     .food-dialog-header,
     #food-search-step,
+    .product-search-step,
     .food-amount-form {
         padding-right: 18px;
         padding-left: 18px;
