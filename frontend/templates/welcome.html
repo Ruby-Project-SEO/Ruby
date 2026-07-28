@@ -131,21 +131,30 @@
             </div>
 
             <div class="plan-tabs" role="tablist" aria-label="Plan category">
-                <button id="food-plan-tab" class="active" type="button" role="tab"
-                        aria-selected="true" aria-controls="food-plan" data-plan-tab="food-plan">
+                <button id="food-plan-tab" class="{% if active_plan == 'food-plan' %}active{% endif %}"
+                        type="button" role="tab"
+                        aria-selected="{{ 'true' if active_plan == 'food-plan' else 'false' }}"
+                        aria-controls="food-plan" data-plan-tab="food-plan">
                     Food
                 </button>
-                <button id="medication-plan-tab" type="button" role="tab"
-                        aria-selected="false" aria-controls="medication-plan" data-plan-tab="medication-plan">
+                <button id="medication-plan-tab"
+                        class="{% if active_plan == 'medication-plan' %}active{% endif %}"
+                        type="button" role="tab"
+                        aria-selected="{{ 'true' if active_plan == 'medication-plan' else 'false' }}"
+                        aria-controls="medication-plan" data-plan-tab="medication-plan">
                     Medications
                 </button>
-                <button id="cosmetic-plan-tab" type="button" role="tab"
-                        aria-selected="false" aria-controls="cosmetic-plan" data-plan-tab="cosmetic-plan">
+                <button id="cosmetic-plan-tab"
+                        class="{% if active_plan == 'cosmetic-plan' %}active{% endif %}"
+                        type="button" role="tab"
+                        aria-selected="{{ 'true' if active_plan == 'cosmetic-plan' else 'false' }}"
+                        aria-controls="cosmetic-plan" data-plan-tab="cosmetic-plan">
                     Cosmetics
                 </button>
             </div>
 
-            <div id="food-plan" class="plan-panel" role="tabpanel" aria-labelledby="food-plan-tab">
+            <div id="food-plan" class="plan-panel" role="tabpanel" aria-labelledby="food-plan-tab"
+                 {% if active_plan != 'food-plan' %}hidden{% endif %}>
                 <div class="plan-panel-heading">
                     <div>
                         <h3>Food overview</h3>
@@ -325,48 +334,80 @@
             </div>
 
             <div id="medication-plan" class="plan-panel" role="tabpanel"
-                 aria-labelledby="medication-plan-tab" hidden>
+                 aria-labelledby="medication-plan-tab"
+                 {% if active_plan != 'medication-plan' %}hidden{% endif %}>
                 <div class="plan-panel-heading">
                     <div>
                         <h3>Medication schedule</h3>
                         <p>What’s due today and whether anything needs attention.</p>
                     </div>
-                    <span class="plan-setup-status">Not set up</span>
+                    <button id="open-medication-search" class="plan-add-button" type="button">
+                        Add medication
+                    </button>
                 </div>
-                <div class="schedule-overview">
-                    <section>
-                        <span>Today’s schedule</span>
+                <div class="routine-list">
+                    {% for item in medications %}
+                    <article class="routine-item">
+                        <span class="routine-source-badge">Rx</span>
+                        <div>
+                            <strong>{{ item.name }}</strong>
+                            <span>{{ item.strength or 'Strength not specified' }} · {{ item.schedule_time }}</span>
+                            <small>{{ item.safety_note }}</small>
+                        </div>
+                        <form action="{{ url_for('delete_medication', medication_id=item.id) }}" method="POST">
+                            <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                            <button type="submit" aria-label="Remove {{ item.name }}">Remove</button>
+                        </form>
+                    </article>
+                    {% else %}
+                    <div class="routine-empty">
                         <strong>No medications scheduled</strong>
-                        <p>Scheduled doses will appear here in time order.</p>
-                    </section>
-                    <section>
-                        <span>Medication safety</span>
-                        <strong>Monitoring not set up</strong>
-                        <p>Recall and FDA warning matches will appear here.</p>
-                    </section>
+                        <p>Add a medication to see it here in time order.</p>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
 
             <div id="cosmetic-plan" class="plan-panel" role="tabpanel"
-                 aria-labelledby="cosmetic-plan-tab" hidden>
+                 aria-labelledby="cosmetic-plan-tab"
+                 {% if active_plan != 'cosmetic-plan' %}hidden{% endif %}>
                 <div class="plan-panel-heading">
                     <div>
                         <h3>Cosmetic routine</h3>
                         <p>Your personal-care steps and product safety.</p>
                     </div>
-                    <span class="plan-setup-status">Not set up</span>
+                    <button id="open-cosmetic-search" class="plan-add-button" type="button">
+                        Add cosmetic
+                    </button>
                 </div>
-                <div class="schedule-overview">
-                    <section>
-                        <span>Today’s routine</span>
-                        <strong>No steps scheduled</strong>
-                        <p>Morning and evening routine steps will appear here.</p>
-                    </section>
-                    <section>
-                        <span>Cosmetic safety</span>
-                        <strong>Monitoring not set up</strong>
-                        <p>Relevant recalls and safety notices will appear here.</p>
-                    </section>
+                <div class="routine-list">
+                    {% for item in cosmetics %}
+                    <article class="routine-item">
+                        <span class="routine-product-image">
+                            {% if item.image_url %}
+                            <img src="{{ item.image_url }}" alt="" loading="lazy">
+                            {% elif item.logo_url %}
+                            <img src="{{ item.logo_url }}" alt="" loading="lazy">
+                            {% else %}
+                            {{ (item.brand or item.name)[:2]|upper }}
+                            {% endif %}
+                        </span>
+                        <div>
+                            <strong>{{ item.name }}</strong>
+                            <span>{{ item.brand or 'Brand not listed' }} · {{ item.routine_time|title }}</span>
+                            <small>{{ item.safety_note }}</small>
+                        </div>
+                        <form action="{{ url_for('delete_cosmetic', cosmetic_id=item.id) }}" method="POST">
+                            <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                            <button type="submit" aria-label="Remove {{ item.name }}">Remove</button>
+                        </form>
+                    </article>
+                    {% else %}
+                    <div class="routine-empty">
+                        <strong>No cosmetic steps scheduled</strong>
+                        <p>Add a product to build your morning or evening routine.</p>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </section>
@@ -387,7 +428,6 @@
                     <input id="usda-food-query" type="search"
                            placeholder="Try chicken breast, rice, yogurt..."
                            autocomplete="off">
-                </label>
                 <p id="food-search-status" class="food-search-status">
                     Enter at least two letters to search.
                 </p>
@@ -422,6 +462,103 @@
                 </div>
                 <p id="selected-serving-note" class="selected-serving-note"></p>
                 <button class="confirm-food-add" type="submit">Add to today</button>
+            </form>
+        </dialog>
+
+        <dialog id="medication-search-dialog" class="food-search-dialog product-search-dialog">
+            <div class="food-dialog-header">
+                <div>
+                    <span class="dashboard-section-label">Add medication</span>
+                    <h2>What do you take?</h2>
+                    <p>Search normalized RxNorm medication records.</p>
+                </div>
+                <button class="close-product-dialog" type="button">Close</button>
+            </div>
+            <div class="product-search-step">
+                <label class="modal-food-search">
+                    <span>Search medications</span>
+                    <input class="product-query" type="search"
+                           placeholder="Try metformin, lisinopril..." autocomplete="off">
+                </label>
+                <p class="food-search-status product-search-status">
+                    Enter at least two letters to search.
+                </p>
+                <div class="usda-food-results product-results" role="listbox"></div>
+            </div>
+            <form class="food-amount-form product-selection-form"
+                  action="{{ url_for('add_medication') }}" method="POST" hidden>
+                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                <input class="selected-product-id" type="hidden" name="rxcui">
+                <input class="selected-product-name-input" type="hidden" name="name">
+                <button class="change-selected-product change-selected-food" type="button">
+                    Back to results
+                </button>
+                <div class="selected-food-copy">
+                    <span>Selected medication</span>
+                    <h3 class="selected-product-name"></h3>
+                    <p>Confirm the strength and daily time.</p>
+                </div>
+                <div class="food-amount-fields">
+                    <label>
+                        <span>Strength</span>
+                        <select class="product-option" name="strength"></select>
+                    </label>
+                    <label>
+                        <span>Time</span>
+                        <input type="time" name="schedule_time" value="08:00" required>
+                    </label>
+                </div>
+                <button class="confirm-food-add" type="submit">Add medication</button>
+            </form>
+        </dialog>
+
+        <dialog id="cosmetic-search-dialog" class="food-search-dialog product-search-dialog">
+            <div class="food-dialog-header">
+                <div>
+                    <span class="dashboard-section-label">Add cosmetic</span>
+                    <h2>What product do you use?</h2>
+                    <p>Search community-contributed product and brand records.</p>
+                </div>
+                <button class="close-product-dialog" type="button">Close</button>
+            </div>
+            <div class="product-search-step">
+                <label class="modal-food-search">
+                    <span>Search cosmetics</span>
+                    <input class="product-query" type="search"
+                           placeholder="Try CeraVe cleanser, sunscreen..." autocomplete="off">
+                </label>
+                <p class="food-search-status product-search-status">
+                    Enter at least two letters to search.
+                </p>
+                <div class="usda-food-results product-results" role="listbox"></div>
+            </div>
+            <form class="food-amount-form product-selection-form"
+                  action="{{ url_for('add_cosmetic') }}" method="POST" hidden>
+                <input type="hidden" name="auth_form_token" value="{{ auth_form_token }}">
+                <input class="selected-product-id" type="hidden" name="product_code">
+                <input class="selected-product-name-input" type="hidden" name="name">
+                <input class="selected-product-brand" type="hidden" name="brand">
+                <input class="selected-product-image" type="hidden" name="image_url">
+                <input class="selected-product-logo" type="hidden" name="logo_url">
+                <button class="change-selected-product change-selected-food" type="button">
+                    Back to results
+                </button>
+                <div class="selected-food-copy">
+                    <span>Selected cosmetic</span>
+                    <h3 class="selected-product-name"></h3>
+                    <p class="selected-product-detail"></p>
+                </div>
+                <div class="food-amount-fields single-field">
+                    <label>
+                        <span>Routine time</span>
+                        <select name="routine_time">
+                            <option value="morning">Morning</option>
+                            <option value="afternoon">Afternoon</option>
+                            <option value="evening">Evening</option>
+                        </select>
+                    </label>
+                </div>
+                <button class="confirm-food-add" type="submit">Add to routine</button>
             </form>
         </dialog>
     </div>
@@ -649,6 +786,142 @@
             foodAmount.value = selectedServingGrams || '100';
             selectedServingNote.textContent = 'Enter the amount you ate in grams.';
         }
+    });
+
+    const setupProductSearch = ({
+        dialogId,
+        openButtonId,
+        endpoint,
+        kind,
+    }) => {
+        const dialog = document.getElementById(dialogId);
+        const openButton = document.getElementById(openButtonId);
+        const closeButton = dialog.querySelector('.close-product-dialog');
+        const searchStep = dialog.querySelector('.product-search-step');
+        const selectionForm = dialog.querySelector('.product-selection-form');
+        const queryInput = dialog.querySelector('.product-query');
+        const status = dialog.querySelector('.product-search-status');
+        const results = dialog.querySelector('.product-results');
+        const backButton = dialog.querySelector('.change-selected-product');
+        let searchTimer;
+
+        const showSearch = () => {
+            searchStep.hidden = false;
+            selectionForm.hidden = true;
+            window.setTimeout(() => queryInput.focus(), 50);
+        };
+
+        const selectProduct = (product) => {
+            selectionForm.querySelector('.selected-product-id').value =
+                product.rxcui || product.code || '';
+            selectionForm.querySelector('.selected-product-name-input').value = product.name;
+            selectionForm.querySelector('.selected-product-name').textContent = product.name;
+            if (kind === 'medication') {
+                const strengthSelect = selectionForm.querySelector('.product-option');
+                strengthSelect.replaceChildren();
+                const strengths = product.strengths.length
+                    ? product.strengths
+                    : ['Strength not specified'];
+                strengths.forEach((strength) => {
+                    const option = document.createElement('option');
+                    option.value = strength === 'Strength not specified' ? '' : strength;
+                    option.textContent = strength;
+                    strengthSelect.append(option);
+                });
+            } else {
+                selectionForm.querySelector('.selected-product-brand').value = product.brand || '';
+                selectionForm.querySelector('.selected-product-image').value = product.image_url || '';
+                selectionForm.querySelector('.selected-product-logo').value = product.logo_url || '';
+                selectionForm.querySelector('.selected-product-detail').textContent =
+                    product.brand || 'Brand not listed';
+            }
+            searchStep.hidden = true;
+            selectionForm.hidden = false;
+        };
+
+        const renderResults = (products) => {
+            results.replaceChildren();
+            products.forEach((product) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'usda-food-result';
+                button.setAttribute('role', 'option');
+                const identity = document.createElement('span');
+                identity.className = 'food-result-identity';
+                const visual = document.createElement('span');
+                visual.className = 'food-result-logo';
+                visual.textContent = kind === 'medication' ? 'Rx' : 'OBF';
+                const imageUrl = product.image_url || product.logo_url;
+                if (imageUrl) {
+                    const image = document.createElement('img');
+                    image.src = imageUrl;
+                    image.alt = '';
+                    image.loading = 'lazy';
+                    image.addEventListener('error', () => image.remove());
+                    visual.append(image);
+                }
+                const copy = document.createElement('span');
+                copy.className = 'food-result-copy';
+                const name = document.createElement('strong');
+                const detail = document.createElement('small');
+                const source = document.createElement('b');
+                name.textContent = product.name;
+                detail.textContent = kind === 'medication'
+                    ? (product.strengths[0] || 'Choose a time and optional strength')
+                    : (product.brand || 'Brand not listed');
+                source.textContent = product.source;
+                copy.append(name, detail, source);
+                identity.append(visual, copy);
+                const choose = document.createElement('span');
+                choose.textContent = 'Choose';
+                button.append(identity, choose);
+                button.addEventListener('click', () => selectProduct(product));
+                results.append(button);
+            });
+        };
+
+        openButton.addEventListener('click', () => {
+            dialog.showModal();
+            showSearch();
+        });
+        closeButton.addEventListener('click', () => dialog.close());
+        backButton.addEventListener('click', showSearch);
+        queryInput.addEventListener('input', () => {
+            window.clearTimeout(searchTimer);
+            const query = queryInput.value.trim();
+            results.replaceChildren();
+            if (query.length < 2) {
+                status.textContent = 'Enter at least two letters to search.';
+                return;
+            }
+            status.textContent = 'Searching…';
+            searchTimer = window.setTimeout(async () => {
+                try {
+                    const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'Search failed');
+                    renderResults(data.results);
+                    status.textContent = data.results.length
+                        ? `${data.results.length} results found`
+                        : 'No matching products found.';
+                } catch (error) {
+                    status.textContent = error.message;
+                }
+            }, 350);
+        });
+    };
+
+    setupProductSearch({
+        dialogId: 'medication-search-dialog',
+        openButtonId: 'open-medication-search',
+        endpoint: '/api/medications',
+        kind: 'medication',
+    });
+    setupProductSearch({
+        dialogId: 'cosmetic-search-dialog',
+        openButtonId: 'open-cosmetic-search',
+        endpoint: '/api/cosmetics',
+        kind: 'cosmetic',
     });
 
     document.querySelectorAll('.task-row').forEach((taskRow) => {

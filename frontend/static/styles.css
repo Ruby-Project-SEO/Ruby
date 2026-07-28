@@ -1861,6 +1861,104 @@ body {
     white-space: nowrap;
 }
 
+.plan-add-button {
+    padding: 9px 13px;
+    border: 0;
+    border-radius: 8px;
+    background: #075737;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.routine-list {
+    display: grid;
+    margin-top: 4px;
+}
+
+.routine-item {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 0;
+    border-bottom: 1px solid #e7ebe6;
+}
+
+.routine-source-badge,
+.routine-product-image {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid #dce5d9;
+    border-radius: 12px;
+    background: #edf4ec;
+    color: #315844;
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.routine-product-image img {
+    width: 100%;
+    height: 100%;
+    padding: 3px;
+    object-fit: contain;
+    background: #fff;
+}
+
+.routine-item > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.routine-item strong {
+    overflow: hidden;
+    color: #234b38;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.routine-item div > span {
+    color: #718078;
+    font-size: 11px;
+}
+
+.routine-item small {
+    color: #547268;
+    font-size: 10px;
+}
+
+.routine-item form button {
+    border: 0;
+    background: transparent;
+    color: #8a5a52;
+    font-size: 10px;
+    font-weight: 650;
+}
+
+.routine-empty {
+    padding: 24px 0 4px;
+}
+
+.routine-empty strong {
+    color: #365746;
+    font-size: 13px;
+}
+
+.routine-empty p {
+    margin: 4px 0 0;
+    color: #829087;
+    font-size: 11px;
+}
+
+.food-amount-fields.single-field {
+    grid-template-columns: 1fr;
+}
+
 .food-stat-grid,
 .schedule-overview {
     display: grid;
